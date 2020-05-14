@@ -1,4 +1,4 @@
-# AllCAN_LIN_USB
+# All_CAN_LIN_USB
 
 CAN и LIN адаптер.
 В основе контроллер STM32F103C8, а точнее плата BluePill.
