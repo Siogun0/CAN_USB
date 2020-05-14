@@ -285,7 +285,7 @@ int main(void)
 
   //EEPROM_Wait_ready(&hspi2, 50000);
 //  EEPROM_Write(&hspi2, 0, test_str, sizeof(test_str));
-  HAL_Delay(100);
+//  HAL_Delay(100);
 //  EEPROM_Read(&hspi2, 0, (uint8_t*)&eeprom_settings, sizeof(eeprom_settings));
 
 
