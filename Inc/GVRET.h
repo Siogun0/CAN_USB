@@ -287,6 +287,7 @@ void Change_CAN_channel(void);
 void Next_CAN_channel (void);
 HAL_StatusTypeDef Close_LIN_cannel(void);
 HAL_StatusTypeDef Open_LIN_cannel(void);
+void STM_bxCAN_calc(uint32_t freq, float bitrate, CAN_HandleTypeDef * hcan);
 #endif /* GVRET_H_ */
 
 

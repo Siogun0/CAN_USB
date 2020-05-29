@@ -7,6 +7,7 @@
 #include "GVRET.h"
 #include "can.h"
 #include <string.h>
+#include <math.h>
 
 EEPROMSettings settings;
 SystemSettings SysSettings;
@@ -156,14 +157,14 @@ HAL_StatusTypeDef CAN_Init_Custom(uint32_t speed, uint32_t mode)
 			hcan.Init.TimeSeg2 = CAN_BS2_2TQ;
 			break;
 		case 250000:
-			hcan.Init.Prescaler = 18;
+			hcan.Init.Prescaler = 9;
 			hcan.Init.TimeSeg1 = CAN_BS1_13TQ;
 			hcan.Init.TimeSeg2 = CAN_BS2_2TQ;
 			break;
 		case 125000:
-			hcan.Init.Prescaler = 36;
-			hcan.Init.TimeSeg1 = CAN_BS1_6TQ;
-			hcan.Init.TimeSeg2 = CAN_BS2_1TQ;
+			hcan.Init.Prescaler = 18;
+			hcan.Init.TimeSeg1 = CAN_BS1_13TQ;
+			hcan.Init.TimeSeg2 = CAN_BS2_2TQ;
 			break;
 		case 100000:
 			hcan.Init.Prescaler = 45;
@@ -211,10 +212,8 @@ HAL_StatusTypeDef CAN_Init_Custom(uint32_t speed, uint32_t mode)
 			hcan.Init.TimeSeg2 = CAN_BS2_2TQ;
 			break;
 		default:
-			// TODO custom btr calculation
-			hcan.Init.Prescaler = 9;
-			hcan.Init.TimeSeg1 = CAN_BS1_6TQ;
-			hcan.Init.TimeSeg2 = CAN_BS2_1TQ;
+			// custom btr calculation
+			STM_bxCAN_calc(36000000UL, speed, &hcan);
 			break;
 	}
 
@@ -1447,4 +1446,66 @@ void HAL_CAN_TxMailbox2CompleteCallback(CAN_HandleTypeDef *hcan)
 void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan)
 {
 	HAL_GPIO_WritePin(ERROR_LED_GPIO_Port, ERROR_LED_Pin, GPIO_PIN_SET);
+}
+
+
+#define MAX_BRP 1024
+#define MIN_TQ  8
+#define MAX_TQ1 16
+#define MAX_TQ2 8
+#define MAX_TQ  (MAX_TQ1 + MAX_TQ2 + 1) //25
+
+#define SAMPE_POINT 0.875f //0.75f
+
+void STM_bxCAN_calc(uint32_t freq, float bitrate, CAN_HandleTypeDef * hcan)
+{
+	CAN_HandleTypeDef temp_reg;
+    float accuracy, best_accuracy = 1;
+    uint32_t brpresc;
+    float number_of_time_quanta;
+    uint32_t ceil_of_time_quanta;
+    float real_sp, best_sp = 0;
+
+    if(bitrate > 4000000.0f || bitrate < 2000.0f) return;
+
+    for(uint32_t i = 0; i < MAX_BRP; i++)
+    {
+        brpresc = i+1;
+        number_of_time_quanta = freq / (bitrate * brpresc);
+        ceil_of_time_quanta = roundf(number_of_time_quanta);
+
+        if(ceil_of_time_quanta < MIN_TQ) break;
+        if(ceil_of_time_quanta > MAX_TQ) continue;
+
+        accuracy = fabsf(number_of_time_quanta - ceil_of_time_quanta);
+        if(accuracy < 0.00001f) accuracy = 0.0f;
+
+        //if(accuracy > 0.5f) continue;
+
+        temp_reg.Init.Prescaler = brpresc;
+        temp_reg.Init.TimeSeg1 = (roundf(ceil_of_time_quanta * SAMPE_POINT)) - 1;
+        temp_reg.Init.TimeSeg2 = ceil_of_time_quanta - temp_reg.Init.TimeSeg1 - 1;
+
+        if(temp_reg.Init.TimeSeg1 > MAX_TQ1 || temp_reg.Init.TimeSeg2 > MAX_TQ2) continue;
+
+        if(temp_reg.Init.TimeSeg2 < 1 && temp_reg.Init.TimeSeg1 >=1)
+        {
+            temp_reg.Init.TimeSeg2 +=1;
+            temp_reg.Init.TimeSeg1 -=1;
+        }
+
+        real_sp = ((float)(temp_reg.Init.TimeSeg1 + 1) / (float)ceil_of_time_quanta);
+
+        //if(real_sp < 0.5f) continue;
+
+        if((accuracy < best_accuracy) || ((accuracy == 0.0f) && (fabsf(real_sp - SAMPE_POINT) < fabsf(best_sp - SAMPE_POINT)) && (temp_reg.Init.TimeSeg2 == hcan->Init.TimeSeg2)))
+        {
+            hcan->Init.Prescaler = temp_reg.Init.Prescaler;
+            hcan->Init.TimeSeg1 = temp_reg.Init.TimeSeg1;
+            hcan->Init.TimeSeg2 = temp_reg.Init.TimeSeg2;
+            best_accuracy = accuracy;
+            best_sp = real_sp;
+        }
+    }
+
 }
