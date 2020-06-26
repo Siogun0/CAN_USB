@@ -179,13 +179,13 @@ typedef struct {
 } SystemSettings;
 
 typedef struct {
-	uint8_t version;
-	uint8_t eeprom_size;
+	uint16_t version;
+	uint16_t eeprom_size;
 	uint8_t number_of_busses;
 	uint8_t reserv1;
-	uint32_t start_address_csript;
+	uint16_t start_address_csript;
 
-	int8_t numBus;
+	uint8_t numBus;
     uint32_t CAN_Speed[4];
     uint32_t reserv2[6];
     uint32_t CAN_mode[4];
@@ -260,9 +260,10 @@ typedef struct
 
 typedef struct
 {
-	enum {IDLE_ST, CAN_HACKER_CONNECT, SAVVYCAN_CONNECT} state;
-	uint8_t timestamp_en;
-
+	enum {IDLE_ST, LAWICEL_CONNECT, SAVVYCAN_CONNECT} state;
+	boolean timestamp_en;
+	boolean useBinarySerialComm;
+	boolean CAN_Enable[4];
 } conf_t;
 
 extern t_eeprom_settings eeprom_settings;

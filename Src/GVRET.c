@@ -8,9 +8,10 @@
 #include "can.h"
 #include <string.h>
 #include <math.h>
+#include "eeprom.h"
 
-EEPROMSettings settings;
-SystemSettings SysSettings;
+//EEPROMSettings settings;
+//SystemSettings SysSettings;
 // command buffer
 uint8_t cmd_buf[CMD_BUFFER_LENGTH];
 // command buffer index
@@ -263,7 +264,7 @@ uint16_t BuildFrameToUSB (can_msg_t frame, int whichBus, uint8_t * buf)
 	uint32_t pointer = 0;
     uint8_t temp;
 
-    if (SysSettings.lawicelMode)
+    if (conf.state == LAWICEL_CONNECT)
     {
     	if(frame.header.IDE == CAN_ID_STD)//(frame.format == STANDARD)
     	{
@@ -310,7 +311,7 @@ uint16_t BuildFrameToUSB (can_msg_t frame, int whichBus, uint8_t * buf)
     		}
     	}
 
-    	if(conf.timestamp_en || SysSettings.lawicelTimestamping == true)
+    	if(conf.timestamp_en)
     	{
     		uint16_t timestamp = frame.timestamp % 60000u;
     		ShortToHex(timestamp >> 8 , &buf[pointer]);
@@ -321,15 +322,15 @@ uint16_t BuildFrameToUSB (can_msg_t frame, int whichBus, uint8_t * buf)
 
     	buf[pointer++] = CR;
     }
-    else
+    else if(conf.state == SAVVYCAN_CONNECT)
     {
-        if (settings.useBinarySerialComm)
+        if (conf.useBinarySerialComm)
         {
         	uint32_t id_temp;
             if (frame.header.IDE == CAN_ID_EXT) id_temp = frame.header.ExtId | 1 << 31;
             else id_temp = frame.header.StdId;
             buf[pointer++] = 0xF1;
-            buf[pointer++] = 0; //0 = canbus frame sending
+            buf[pointer++] = eeprom_settings.numBus; //0 = canbus frame sending
             buf[pointer++] = (uint8_t)(frame.timestamp & 0xFF);
             buf[pointer++] = (uint8_t)(frame.timestamp >> 8);
             buf[pointer++] = (uint8_t)(frame.timestamp >> 16);
@@ -345,7 +346,7 @@ uint16_t BuildFrameToUSB (can_msg_t frame, int whichBus, uint8_t * buf)
             //temp = checksumCalc(buff, 11 + frame.length);
             temp = 0;
             buf[pointer++] = temp;
-            //SerialUSB.write(buff, 12 + frame.length);
+
         } else {
            /* SerialUSB.print(micros());
             SerialUSB.print(" - ");
@@ -452,18 +453,15 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         case TIME_STAMP:
             if(cmd_buf[1] == '1')
             {
-            	conf.timestamp_en = 1;
-            	SysSettings.lawicelTimestamping = true;
+            	conf.timestamp_en = true;
             }
             else if(cmd_buf[1] == '0')
             {
-            	conf.timestamp_en = 0;
-            	SysSettings.lawicelTimestamping = false;
+            	conf.timestamp_en = false;
             }
             else
             {
-            	conf.timestamp_en = (conf.timestamp_en == 1) ? 0 : 1;
-            	SysSettings.lawicelTimestamping = (SysSettings.lawicelTimestamping) ? false : true;
+            	conf.timestamp_en = (conf.timestamp_en) ? false : true;
             }
             return CR;
 
@@ -471,12 +469,10 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         case READ_STATUS:
 
         	uart_tx_com_bufer[uart_tx_pointer++] = (READ_STATUS);
-           // usb_byte2ascii ((uint8_t) (CAN_flags >> 8));
+
             uart_tx_com_bufer[uart_tx_pointer++] = '0';
             uart_tx_com_bufer[uart_tx_pointer++] = HAL_CAN_GetState(&hcan) + '0';
-            // turn off Bus Error indication
-            //LED_PORT &= ~_BV (LED_RED);
-            // reset error flags
+
             HAL_CAN_ResetError(&hcan);
             return CR;
 
@@ -488,12 +484,12 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
 
             // set bitrate via BTR
         case SET_CUSTOM_BTR:
-        	SysSettings.CAN_Speed[SysSettings.numBus] = 0;
+        	eeprom_settings.CAN_Speed[eeprom_settings.numBus] = 0;
         	for(int i = 1; i < cmd_len; i++)
         	{
         		if(cmd_buf[i] < '0' || cmd_buf[i] > '9') return ERROR;
-        		SysSettings.CAN_Speed[SysSettings.numBus] *= 10;
-        		SysSettings.CAN_Speed[SysSettings.numBus] += HexTo4bits(cmd_buf[i]);
+        		eeprom_settings.CAN_Speed[eeprom_settings.numBus] *= 10;
+        		eeprom_settings.CAN_Speed[eeprom_settings.numBus] += HexTo4bits(cmd_buf[i]);
         	}
 
         	return CR; // set custom speed
@@ -510,50 +506,50 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
             switch(cmd_buf[1])
             {
             case '0':
-            	SysSettings.CAN_Speed[SysSettings.numBus] = 10000;
+            	eeprom_settings.CAN_Speed[eeprom_settings.numBus] = 10000;
             	break;
             case '1':
-            	SysSettings.CAN_Speed[SysSettings.numBus] = 20000;
+            	eeprom_settings.CAN_Speed[eeprom_settings.numBus] = 20000;
             	break;
             case '2':
-            	SysSettings.CAN_Speed[SysSettings.numBus] = 50000;
+            	eeprom_settings.CAN_Speed[eeprom_settings.numBus] = 50000;
             	break;
             case '3':
-            	SysSettings.CAN_Speed[SysSettings.numBus] = 100000;
+            	eeprom_settings.CAN_Speed[eeprom_settings.numBus] = 100000;
             	break;
             case '4':
-            	SysSettings.CAN_Speed[SysSettings.numBus] = 125000;
+            	eeprom_settings.CAN_Speed[eeprom_settings.numBus] = 125000;
             	break;
             case '5':
-            	SysSettings.CAN_Speed[SysSettings.numBus] = 250000;
+            	eeprom_settings.CAN_Speed[eeprom_settings.numBus] = 250000;
             	break;
             case '6':
-            	SysSettings.CAN_Speed[SysSettings.numBus] = 500000;
+            	eeprom_settings.CAN_Speed[eeprom_settings.numBus] = 500000;
             	break;
             case '7':
-            	SysSettings.CAN_Speed[SysSettings.numBus] = 800000;
+            	eeprom_settings.CAN_Speed[eeprom_settings.numBus] = 800000;
             	break;
             case '8':
-            	SysSettings.CAN_Speed[SysSettings.numBus] = 1000000;
+            	eeprom_settings.CAN_Speed[eeprom_settings.numBus] = 1000000;
             	break;
             case '9':
-            	SysSettings.CAN_Speed[SysSettings.numBus] = 95238;
+            	eeprom_settings.CAN_Speed[eeprom_settings.numBus] = 95238;
             	break;
             case 'a':
             case 'A':
-            	SysSettings.CAN_Speed[SysSettings.numBus] = 8333;
+            	eeprom_settings.CAN_Speed[eeprom_settings.numBus] = 8333;
             	break;
             case 'b':
             case 'B':
-            	SysSettings.CAN_Speed[SysSettings.numBus] = 47619;
+            	eeprom_settings.CAN_Speed[eeprom_settings.numBus] = 47619;
             	break;
             case 'c':
             case 'C':
-            	SysSettings.CAN_Speed[SysSettings.numBus] = 33333;
+            	eeprom_settings.CAN_Speed[eeprom_settings.numBus] = 33333;
             	break;
             case 'd':
             case 'D':
-            	SysSettings.CAN_Speed[SysSettings.numBus] = 5000;
+            	eeprom_settings.CAN_Speed[eeprom_settings.numBus] = 5000;
             	break;
             default:
             	return ERROR;
@@ -566,28 +562,28 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         case OPEN_CAN_CHAN:
 
             // return error if controller is not initialized or already open
-        	if(SysSettings.numBus == 3) // LIN
+        	if(eeprom_settings.numBus == 3) // LIN
         	{
-            	SysSettings.CAN_mode[SysSettings.numBus] = CAN_MODE_NORMAL;
+            	eeprom_settings.CAN_mode[eeprom_settings.numBus] = CAN_MODE_NORMAL;
             	if(Open_LIN_cannel() != HAL_OK) return ERROR;
         	}
         	else // CAN
         	{
                 if (HAL_CAN_GetState(&hcan) != HAL_CAN_STATE_RESET) return ERROR;
 
-            	SysSettings.CAN_mode[SysSettings.numBus] = CAN_MODE_NORMAL;
+            	eeprom_settings.CAN_mode[eeprom_settings.numBus] = CAN_MODE_NORMAL;
             	if(Open_CAN_cannel() != HAL_OK) return ERROR;
         	}
 
 
-    		conf.state = CAN_HACKER_CONNECT;
-    		SysSettings.lawicelMode = true;
+    		conf.state = LAWICEL_CONNECT;
             return CR;
 
             // close CAN channel
 
         case CLOSE_CAN_CHAN:
-        	if(SysSettings.numBus == 3) // LIN
+        	conf.state = IDLE_ST;
+        	if(eeprom_settings.numBus == 3) // LIN
         	{
             	if(Close_LIN_cannel() != HAL_OK) return ERROR;
         	}
@@ -756,58 +752,58 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
             return CR;
 
         case LISTEN_ONLY:
-        	SysSettings.CAN_mode[SysSettings.numBus] = CAN_MODE_SILENT;
+        	eeprom_settings.CAN_mode[eeprom_settings.numBus] = CAN_MODE_SILENT;
         	if(Open_CAN_cannel() != HAL_OK) return ERROR;
-    		conf.state = CAN_HACKER_CONNECT;
-    		SysSettings.lawicelMode = true;
+    		conf.state = LAWICEL_CONNECT;
             return CR;
 
             //Set USART bitrate
         case SET_USART_BTR:
         	switch (cmd_buf[1])
         	{
-        	case '0': uart_speed = 230400; break;
-        	case '1': uart_speed = 115200; break;
-        	case '2': uart_speed = 57600; break;
-        	case '3': uart_speed = 38400; break;
-        	case '4': uart_speed = 19200; break;
-        	case '5': uart_speed = 9600; break;
-        	case '6': uart_speed = 2400; break;
-        	default: uart_speed = 1000000; break;
+        	case '0': eeprom_settings.UART_Speed = 230400; break;
+        	case '1': eeprom_settings.UART_Speed = 115200; break;
+        	case '2': eeprom_settings.UART_Speed = 57600; break;
+        	case '3': eeprom_settings.UART_Speed = 38400; break;
+        	case '4': eeprom_settings.UART_Speed = 19200; break;
+        	case '5': eeprom_settings.UART_Speed = 9600; break;
+        	case '6': eeprom_settings.UART_Speed = 2400; break;
+        	default: eeprom_settings.UART_Speed = 1000000; break;
         	}
         	HAL_UART_DeInit(huart_active);
-        	huart3.Init.BaudRate = uart_speed;
+        	huart3.Init.BaudRate = eeprom_settings.UART_Speed;
         	if (HAL_UART_Init(huart_active) != HAL_OK)
         	{
         		return ERROR;
         	}
-
+        	EEPROM_Write(&hspi2, EEPROM_SETINGS_ADDR + ((uint32_t)&eeprom_settings.UART_Speed - (uint32_t)&eeprom_settings), (uint8_t*)&eeprom_settings.UART_Speed, sizeof(eeprom_settings.UART_Speed));
         	return CR; // set predefined speed
 
         case SET_USART_BTR_CUST:
-        	uart_speed = 0;
+        	eeprom_settings.UART_Speed = 0;
         	for(int i = 1; i < cmd_len; i++)
         	{
         		if(cmd_buf[i] < '0' || cmd_buf[i] > '9') return ERROR;
-        		uart_speed *= 10;
-        		uart_speed += HexTo4bits(cmd_buf[i]);
+        		eeprom_settings.UART_Speed *= 10;
+        		eeprom_settings.UART_Speed += HexTo4bits(cmd_buf[i]);
         	}
-        	if(uart_speed < 200 || uart_speed > 2000000) return ERROR;
+        	if(eeprom_settings.UART_Speed < 200 || eeprom_settings.UART_Speed > 2000000) return ERROR;
 
         	HAL_UART_DeInit(huart_active);
-        	huart3.Init.BaudRate = uart_speed;
+        	huart3.Init.BaudRate = eeprom_settings.UART_Speed;
         	if (HAL_UART_Init(huart_active) != HAL_OK)
         	{
         		return ERROR;
         	}
-
+        	EEPROM_Write(&hspi2, EEPROM_SETINGS_ADDR + ((uint32_t)&eeprom_settings.UART_Speed - (uint32_t)&eeprom_settings), (uint8_t*)&eeprom_settings.UART_Speed, sizeof(eeprom_settings.UART_Speed));
         	return CR; // set custom speed
 
         	// Select Channel
         case SELECT_BUS_CHANEL:
         	if(cmd_buf[1] < '0' || cmd_buf[1] > '4') return ERROR;
-        	SysSettings.numBus = HexTo4bits(cmd_buf[1]) - 1;
-        	Change_CAN_channel();
+        	eeprom_settings.numBus = HexTo4bits(cmd_buf[1]) - 1;
+        	//Change_CAN_channel();
+        	Open_CAN_cannel();
         	return CR;
 
 
@@ -837,8 +833,8 @@ void Check_Command(uint8_t in_byte)
     case IDLE:
         if (in_byte == 0xF1) state = GET_COMMAND;
         else if (in_byte == 0xE7) {
-            settings.useBinarySerialComm = true;
-            SysSettings.lawicelMode = false;
+            conf.useBinarySerialComm = true;
+            conf.state = SAVVYCAN_CONNECT;
             //setPromiscuousMode(); //go into promisc. mode with binary comm
         }
         else {
@@ -932,24 +928,20 @@ void Check_Command(uint8_t in_byte)
         case PROTO_GET_CANBUS_PARAMS:
             //immediately return data on canbus params
 
-        	// TODO debug initialisation
-        	SysSettings.CAN_Speed[0] = 500000;
-        	SysSettings.CAN_Speed[1] = 95238;
-        	SysSettings.CAN_Speed[2] = 33333;
-        	SysSettings.CAN_Speed[3] = 9600;
+
 
         	uart_tx_com_bufer[uart_tx_pointer++] = 0xF1;
         	uart_tx_com_bufer[uart_tx_pointer++] = 6;
-        	uart_tx_com_bufer[uart_tx_pointer++] = settings.CAN0_Enabled + ((unsigned char)settings.CAN0ListenOnly << 4);
-        	uart_tx_com_bufer[uart_tx_pointer++] = SysSettings.CAN_Speed[0];
-        	uart_tx_com_bufer[uart_tx_pointer++] = SysSettings.CAN_Speed[0] >> 8;
-        	uart_tx_com_bufer[uart_tx_pointer++] = SysSettings.CAN_Speed[0] >> 16;
-        	uart_tx_com_bufer[uart_tx_pointer++] = SysSettings.CAN_Speed[0] >> 24;
-        	uart_tx_com_bufer[uart_tx_pointer++] = settings.CAN1_Enabled + ((unsigned char)settings.CAN1ListenOnly << 4) + ((unsigned char)settings.singleWire_Enabled << 6);
-        	uart_tx_com_bufer[uart_tx_pointer++] = SysSettings.CAN_Speed[1];
-        	uart_tx_com_bufer[uart_tx_pointer++] = SysSettings.CAN_Speed[1] >> 8;
-        	uart_tx_com_bufer[uart_tx_pointer++] = SysSettings.CAN_Speed[1] >> 16;
-        	uart_tx_com_bufer[uart_tx_pointer++] = SysSettings.CAN_Speed[1] >> 24;
+        	uart_tx_com_bufer[uart_tx_pointer++] = conf.CAN_Enable[0] + (eeprom_settings.CAN_mode[0] == CAN_MODE_SILENT ? 1 << 4 : 0);
+        	uart_tx_com_bufer[uart_tx_pointer++] = eeprom_settings.CAN_Speed[0];
+        	uart_tx_com_bufer[uart_tx_pointer++] = eeprom_settings.CAN_Speed[0] >> 8;
+        	uart_tx_com_bufer[uart_tx_pointer++] = eeprom_settings.CAN_Speed[0] >> 16;
+        	uart_tx_com_bufer[uart_tx_pointer++] = eeprom_settings.CAN_Speed[0] >> 24;
+        	uart_tx_com_bufer[uart_tx_pointer++] = conf.CAN_Enable[1] + (eeprom_settings.CAN_mode[1] == CAN_MODE_SILENT ? 1 << 4 : 0);
+        	uart_tx_com_bufer[uart_tx_pointer++] = eeprom_settings.CAN_Speed[1];
+        	uart_tx_com_bufer[uart_tx_pointer++] = eeprom_settings.CAN_Speed[1] >> 8;
+        	uart_tx_com_bufer[uart_tx_pointer++] = eeprom_settings.CAN_Speed[1] >> 16;
+        	uart_tx_com_bufer[uart_tx_pointer++] = eeprom_settings.CAN_Speed[1] >> 24;
             uart_answ_ready = 1;
             state = IDLE;
             break;
@@ -960,9 +952,9 @@ void Check_Command(uint8_t in_byte)
         	uart_tx_com_bufer[uart_tx_pointer++] = CFG_BUILD_NUM & 0xFF;
         	uart_tx_com_bufer[uart_tx_pointer++] = (CFG_BUILD_NUM >> 8);
         	uart_tx_com_bufer[uart_tx_pointer++] = EEPROM_VER;
-        	uart_tx_com_bufer[uart_tx_pointer++] = (unsigned char)settings.fileOutputType;
-        	uart_tx_com_bufer[uart_tx_pointer++] = (unsigned char)settings.autoStartLogging;
-        	uart_tx_com_bufer[uart_tx_pointer++] = settings.singleWire_Enabled;
+        	uart_tx_com_bufer[uart_tx_pointer++] = 1;//(unsigned char)settings.fileOutputType;
+        	uart_tx_com_bufer[uart_tx_pointer++] = 1;//(unsigned char)settings.autoStartLogging;
+        	uart_tx_com_bufer[uart_tx_pointer++] = 1;//settings.singleWire_Enabled;
             uart_answ_ready = 1;
             state = IDLE;
             break;
@@ -992,23 +984,23 @@ void Check_Command(uint8_t in_byte)
         case PROTO_GET_NUMBUSES:
             uart_tx_com_bufer[uart_tx_pointer++] = 0xF1;
             uart_tx_com_bufer[uart_tx_pointer++] = 12;
-            uart_tx_com_bufer[uart_tx_pointer++] = 4; //CAN0, CAN1, SWCAN
+            uart_tx_com_bufer[uart_tx_pointer++] = eeprom_settings.number_of_busses; //CAN0, CAN1, SWCAN
             uart_answ_ready = 1;
             state = IDLE;
             break;
          case PROTO_GET_EXT_BUSES:
             uart_tx_com_bufer[0] = 0xF1;
             uart_tx_com_bufer[1] = 13;
-            uart_tx_com_bufer[2] = settings.singleWire_Enabled + ((unsigned char)settings.SWCANListenOnly << 4);
-            uart_tx_com_bufer[3] = SysSettings.CAN_Speed[2];
-            uart_tx_com_bufer[4] = SysSettings.CAN_Speed[2] >> 8;
-            uart_tx_com_bufer[5] = SysSettings.CAN_Speed[2] >> 16;
-            uart_tx_com_bufer[6] = SysSettings.CAN_Speed[2] >> 24;
-            uart_tx_com_bufer[7] = 0; //fourth bus enabled
-            uart_tx_com_bufer[8] = SysSettings.CAN_Speed[3]; //fourth bus speed (4 bytes)
-            uart_tx_com_bufer[9] = SysSettings.CAN_Speed[3] >> 8;
-            uart_tx_com_bufer[10] = SysSettings.CAN_Speed[3] >> 16;
-            uart_tx_com_bufer[11] = SysSettings.CAN_Speed[3] >> 24;
+            uart_tx_com_bufer[2] = conf.CAN_Enable[2] + (eeprom_settings.CAN_mode[2] == CAN_MODE_SILENT ? 1 << 4 : 0);//settings.CAN2_Enabled + (eeprom_settings.CAN_mode[2] == CAN_MODE_SILENT ? 1 << 4 : 0);
+            uart_tx_com_bufer[3] = eeprom_settings.CAN_Speed[2];
+            uart_tx_com_bufer[4] = eeprom_settings.CAN_Speed[2] >> 8;
+            uart_tx_com_bufer[5] = eeprom_settings.CAN_Speed[2] >> 16;
+            uart_tx_com_bufer[6] = eeprom_settings.CAN_Speed[2] >> 24;
+            uart_tx_com_bufer[7] = conf.CAN_Enable[3] + (eeprom_settings.CAN_mode[3] == CAN_MODE_SILENT ? 1 << 4 : 0);//settings.CAN3_Enabled + (eeprom_settings.CAN_mode[3] == CAN_MODE_SILENT ? 1 << 4 : 0); //fourth bus enabled
+            uart_tx_com_bufer[8] = eeprom_settings.CAN_Speed[3]; //fourth bus speed (4 bytes)
+            uart_tx_com_bufer[9] = eeprom_settings.CAN_Speed[3] >> 8;
+            uart_tx_com_bufer[10] = eeprom_settings.CAN_Speed[3] >> 16;
+            uart_tx_com_bufer[11] = eeprom_settings.CAN_Speed[3] >> 24;
             uart_tx_com_bufer[12] = 0; //fifth bus enabled
             uart_tx_com_bufer[13] = 0; //fifth bus speed (4 bytes)
             uart_tx_com_bufer[14] = 0;
@@ -1116,37 +1108,35 @@ void Check_Command(uint8_t in_byte)
             build_int |= in_byte << 24;
             if (build_int > 0) {
             	Close_CAN_cannel();
-            	SysSettings.CAN_Speed[SysSettings.numBus] = build_int & 0xFFFFF;
+            	eeprom_settings.CAN_Speed[0] = build_int & 0xFFFFF;
                 if (build_int & 0x80000000) { //signals that enabled and listen only status are also being passed
                 	if ((build_int & 0x60000000) == 0x60000000) {
-                        settings.CAN0ListenOnly = true;
-                        SysSettings.CAN_mode[SysSettings.numBus] = CAN_MODE_SILENT;
+                		conf.CAN_Enable[0] = true;
+                        eeprom_settings.CAN_mode[0] = CAN_MODE_SILENT;
                         conf.state = SAVVYCAN_CONNECT;
+                        eeprom_settings.numBus = 0;
                         Open_CAN_cannel();
                     } else if (build_int & 0x40000000) {
-                        settings.CAN0_Enabled = true;
-                        SysSettings.CAN_mode[SysSettings.numBus] = CAN_MODE_NORMAL;
+                    	conf.CAN_Enable[0] = true;
+                        eeprom_settings.CAN_mode[0] = CAN_MODE_NORMAL;
                         conf.state = SAVVYCAN_CONNECT;
+                        eeprom_settings.numBus = 0;
                         Open_CAN_cannel();
                     } else {
-                        settings.CAN0_Enabled = false;
-                        Close_CAN_cannel();
+                    	conf.CAN_Enable[0] = false;
+                        //Close_CAN_cannel();
                     }
                 } else {
                 	conf.state = SAVVYCAN_CONNECT;
-                	SysSettings.CAN_mode[SysSettings.numBus] = CAN_MODE_NORMAL;
+                	eeprom_settings.CAN_mode[0] = CAN_MODE_NORMAL;
+                	eeprom_settings.numBus = 0;
                     Open_CAN_cannel(); //if not using extended status mode then just default to enabling - this was old behavior
-                    settings.CAN0_Enabled = true;
+                    conf.CAN_Enable[0] = true;
                 }
-                build_int = build_int & 0xFFFFF;
-                //if (build_int > 1000000) build_int = 1000000;
 
-                //Can0.begin(build_int, SysSettings.CAN0EnablePin);
-                //Can0.set_baudrate(build_int);
-                settings.CAN0Speed = build_int;
             } else { //disable first canbus
-                Close_CAN_cannel();
-                settings.CAN0_Enabled = false;
+                //Close_CAN_cannel();
+                conf.CAN_Enable[0] = false;
             }
             break;
         case 4:
@@ -1160,42 +1150,48 @@ void Check_Command(uint8_t in_byte)
             break;
         case 7:
             build_int |= in_byte << 24;
-            if (build_int > 0) {
-                if (build_int & 0x80000000) { //signals that enabled and listen only status are also being passed
-                    if (build_int & 0x40000000) {
-                        settings.CAN1_Enabled = true;
-                        //Can1.enable();
-                    } else {
-                        settings.CAN1_Enabled = false;
-                        //Can1.disable();
-                    }
-                    if (build_int & 0x20000000) {
-                        settings.CAN1ListenOnly = true;
-                        //Can1.enable_autobaud_listen_mode();
-                    } else {
-                        settings.CAN1ListenOnly = false;
-                        //Can1.disable_autobaud_listen_mode();
-                    }
-                } else {
-                    //Can1.enable(); //if not using extended status mode then just default to enabling - this was old behavior
-                    settings.CAN1_Enabled = true;
-                }
-                build_int = build_int & 0xFFFFF;
-                if (build_int > 1000000) build_int = 1000000;
-                //Can1.begin(build_int, SysSettings.CAN1EnablePin);
-                //if (settings.singleWire_Enabled && !SysSettings.dedicatedSWCAN) setSWCANEnabled();
-                //else setSWCANSleep();
-                //Can1.set_baudrate(build_int);
+            if (build_int > 0 ) {
 
-                settings.CAN1Speed = build_int;
-            } else { //disable second canbus
-                //if (!SysSettings.dedicatedSWCAN) setSWCANSleep();
-                //Can1.disable();
-                settings.CAN1_Enabled = false;
+            	eeprom_settings.CAN_Speed[1] = build_int & 0xFFFFF;
+            	if(conf.CAN_Enable[0] == false)
+            	{
+                	Close_CAN_cannel();
+
+                    if (build_int & 0x80000000) { //signals that enabled and listen only status are also being passed
+                    	if ((build_int & 0x60000000) == 0x60000000) {
+                    		conf.CAN_Enable[1] = true;
+                            eeprom_settings.CAN_mode[1] = CAN_MODE_SILENT;
+                            conf.state = SAVVYCAN_CONNECT;
+                            eeprom_settings.numBus = 1;
+                            Open_CAN_cannel();
+                        } else if (build_int & 0x40000000) {
+                        	conf.CAN_Enable[1] = true;
+                            eeprom_settings.CAN_mode[1] = CAN_MODE_NORMAL;
+                            conf.state = SAVVYCAN_CONNECT;
+                            eeprom_settings.numBus = 1;
+                            Open_CAN_cannel();
+                        } else {
+                        	conf.CAN_Enable[1] = false;
+                            //Close_CAN_cannel();
+                        }
+                    } else {
+                    	conf.state = SAVVYCAN_CONNECT;
+                    	eeprom_settings.CAN_mode[1] = CAN_MODE_NORMAL;
+                    	eeprom_settings.numBus = 1;
+                        Open_CAN_cannel(); //if not using extended status mode then just default to enabling - this was old behavior
+                        conf.CAN_Enable[1] = true;
+                    }
+            	}
+
+
+            } else { //disable first canbus
+                //Close_CAN_cannel();
+                conf.CAN_Enable[1] = false;
             }
             state = IDLE;
             //now, write out the new canbus settings to EEPROM
-            //EEPROM.write(EEPROM_PAGE, settings);
+            EEPROM_Write(&hspi2, EEPROM_SETINGS_ADDR + ((uint32_t)&eeprom_settings.CAN_Speed[0] - (uint32_t)&eeprom_settings),
+            		(uint8_t*)&eeprom_settings.CAN_Speed[0], sizeof(eeprom_settings.CAN_Speed[0])*2);
             setPromiscuousMode();
             break;
         }
@@ -1203,17 +1199,17 @@ void Check_Command(uint8_t in_byte)
         break;
     case SET_SINGLEWIRE_MODE:
         if (in_byte == 0x10) {
-            settings.singleWire_Enabled = true;
+            //settings.singleWire_Enabled = true;
             //setSWCANEnabled();
         } else {
-            settings.singleWire_Enabled = false;
+            //settings.singleWire_Enabled = false;
             //setSWCANSleep();
         }
         //EEPROM.write(EEPROM_PAGE, settings);
         state = IDLE;
         break;
     case SET_SYSTYPE:
-        settings.sysType = in_byte;
+        //settings.sysType = in_byte;
         //EEPROM.write(EEPROM_PAGE, settings);
         //loadSettings();
         state = IDLE;
@@ -1274,42 +1270,44 @@ void Check_Command(uint8_t in_byte)
             break;
         case 3:
             build_int |= in_byte << 24;
-         /*   if (build_int > 0) {
-                if (build_int & 0x80000000) { //signals that enabled and listen only status are also being passed
-                    if (build_int & 0x40000000) {
-                        settings.singleWire_Enabled = true;
-                        setSWCANEnabled();
+            if (build_int > 0 ) {
+
+            	//eeprom_settings.CAN_Speed[2] = build_int & 0xFFFFF;
+            	if(conf.CAN_Enable[0] == false && conf.CAN_Enable[1] == false)
+            	{
+                	Close_CAN_cannel();
+
+                    if (build_int & 0x80000000) { //signals that enabled and listen only status are also being passed
+                    	if ((build_int & 0x60000000) == 0x60000000) {
+                    		conf.CAN_Enable[2] = true;
+                            eeprom_settings.CAN_mode[2] = CAN_MODE_SILENT;
+                            conf.state = SAVVYCAN_CONNECT;
+                            eeprom_settings.numBus = 2;
+                            Open_CAN_cannel();
+                        } else if (build_int & 0x40000000) {
+                        	conf.CAN_Enable[2] = true;
+                            eeprom_settings.CAN_mode[2] = CAN_MODE_NORMAL;
+                            conf.state = SAVVYCAN_CONNECT;
+                            eeprom_settings.numBus = 2;
+                            Open_CAN_cannel();
+                        } else {
+                        	conf.CAN_Enable[2] = false;
+                            //Close_CAN_cannel();
+                        }
                     } else {
-                        settings.singleWire_Enabled = false;
-                        setSWCANSleep();
+                    	conf.state = SAVVYCAN_CONNECT;
+                    	eeprom_settings.CAN_mode[2] = CAN_MODE_NORMAL;
+                    	eeprom_settings.numBus = 2;
+                        Open_CAN_cannel(); //if not using extended status mode then just default to enabling - this was old behavior
+                        conf.CAN_Enable[2] = true;
                     }
-                    if (build_int & 0x20000000) {
-                        settings.SWCANListenOnly = true;
-                        //SWCAN.enable_autobaud_listen_mode();
-                    } else {
-                        settings.SWCANListenOnly = false;
-                        //SWCAN.disable_autobaud_listen_mode();
-                    }
-                } else {
-                    setSWCANEnabled();
-                    settings.singleWire_Enabled = true;
-                }
-                build_int = build_int & 0xFFFFF;
-                if (build_int > 100000) build_int = 100000;
-                settings.SWCANSpeed = build_int;
-                SPI.begin();
-                if(SWCAN.Init(settings.SWCANSpeed,16))
-                {
-                    SerialUSB.println("MCP2515 Init OK ...");
-                    attachInterrupt(CANDUE22_SW_INT, SWCAN_Int, FALLING);
-                    setSWCANEnabled();
-                } else {
-                    SerialUSB.println("MCP2515 Init Failed ...");
-                }
+            	}
+
+
             } else { //disable first canbus
-                void setSWCANSleep();
-                settings.singleWire_Enabled = false;
-            }*/
+                //Close_CAN_cannel();
+                conf.CAN_Enable[2] = false;
+            }
             break;
         case 4:
             build_int = in_byte;
@@ -1322,6 +1320,44 @@ void Check_Command(uint8_t in_byte)
             break;
         case 7:
             build_int |= in_byte << 24;
+            if (build_int > 0 ) {
+
+            	//eeprom_settings.CAN_Speed[3] = build_int & 0xFFFFF;
+            	if(conf.CAN_Enable[0] == false && conf.CAN_Enable[1] == false && conf.CAN_Enable[2] == false)
+            	{
+                	Close_CAN_cannel(); // TODO in can work in parralel, LIN
+
+                    if (build_int & 0x80000000) { //signals that enabled and listen only status are also being passed
+                    	if ((build_int & 0x60000000) == 0x60000000) {
+                    		conf.CAN_Enable[32] = true;
+                            eeprom_settings.CAN_mode[3] = CAN_MODE_SILENT;
+                            conf.state = SAVVYCAN_CONNECT;
+                            eeprom_settings.numBus = 3;
+                            Open_CAN_cannel();
+                        } else if (build_int & 0x40000000) {
+                        	conf.CAN_Enable[3] = true;
+                            eeprom_settings.CAN_mode[3] = CAN_MODE_NORMAL;
+                            conf.state = SAVVYCAN_CONNECT;
+                            eeprom_settings.numBus = 3;
+                            Open_CAN_cannel();
+                        } else {
+                        	conf.CAN_Enable[3] = false;
+                            //Close_CAN_cannel();
+                        }
+                    } else {
+                    	conf.state = SAVVYCAN_CONNECT;
+                    	eeprom_settings.CAN_mode[3] = CAN_MODE_NORMAL;
+                    	eeprom_settings.numBus = 3;
+                        Open_CAN_cannel(); //if not using extended status mode then just default to enabling - this was old behavior
+                        conf.CAN_Enable[3] = true;
+                    }
+            	}
+
+
+            } else { //disable first canbus
+                //Close_CAN_cannel();
+                conf.CAN_Enable[3] = false;
+            }
             break;
         case 8:
             build_int = in_byte;
@@ -1357,10 +1393,16 @@ HAL_StatusTypeDef Close_LIN_cannel(void)
 HAL_StatusTypeDef Open_CAN_cannel()
 {
 	Change_CAN_channel();
-	if(CAN_Init_Custom(SysSettings.CAN_Speed[SysSettings.numBus], SysSettings.CAN_mode[SysSettings.numBus]) == HAL_OK)//);CAN_MODE_LOOPBACK
+	if(CAN_Init_Custom(eeprom_settings.CAN_Speed[eeprom_settings.numBus], eeprom_settings.CAN_mode[eeprom_settings.numBus]) == HAL_OK)//);CAN_MODE_LOOPBACK
 	{
+		EEPROM_Write(&hspi2,
+				EEPROM_SETINGS_ADDR + ((uint32_t)&eeprom_settings.CAN_Speed[eeprom_settings.numBus] - (uint32_t)&eeprom_settings),
+				(uint8_t*)&eeprom_settings.CAN_Speed[eeprom_settings.numBus], sizeof(eeprom_settings.CAN_Speed[eeprom_settings.numBus]));
+		EEPROM_Write(&hspi2,
+				EEPROM_SETINGS_ADDR + ((uint32_t)&eeprom_settings.CAN_mode[eeprom_settings.numBus] - (uint32_t)&eeprom_settings),
+				(uint8_t*)&eeprom_settings.CAN_mode[eeprom_settings.numBus], sizeof(eeprom_settings.CAN_mode[eeprom_settings.numBus]));
 
-	  if(SetFilterCAN(0, 0) != HAL_OK) return HAL_ERROR;
+		  if(SetFilterCAN(0, 0) != HAL_OK) return HAL_ERROR;
 		  if(HAL_CAN_Start(&hcan) != HAL_OK) return HAL_ERROR;
 		  if(HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING |
 				  	  	  	  	  	  	  	  	 CAN_IT_RX_FIFO0_FULL |
@@ -1378,8 +1420,6 @@ HAL_StatusTypeDef Close_CAN_cannel(void)
 {
 	if(HAL_CAN_DeInit(&hcan) == HAL_OK)
 	{
-		conf.state = IDLE_ST;
-		SysSettings.lawicelMode = false;
 		HAL_GPIO_WritePin(ERROR_LED_GPIO_Port, ERROR_LED_Pin, GPIO_PIN_RESET);
 		return HAL_OK;
 	}
@@ -1389,8 +1429,8 @@ HAL_StatusTypeDef Close_CAN_cannel(void)
 
 void Change_CAN_channel(void)
 {
-	//Close_CAN_cannel();
-	//Close_LIN_cannel();
+	Close_CAN_cannel();
+	Close_LIN_cannel();
 	HAL_GPIO_WritePin(HS_CAN_EN_GPIO_Port, HS_CAN_EN_Pin, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(FT_CAN_EN_GPIO_Port, FT_CAN_EN_Pin, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(SW_CAN_EN_GPIO_Port, SW_CAN_EN_Pin, GPIO_PIN_RESET);
@@ -1401,7 +1441,7 @@ void Change_CAN_channel(void)
 
 	HAL_Delay(50);
 
-	switch(SysSettings.numBus)
+	switch(eeprom_settings.numBus)
 	{
 	default: break;
 	case 0: HAL_GPIO_WritePin(HS_CAN_EN_GPIO_Port, HS_CAN_EN_Pin, GPIO_PIN_SET); break;
@@ -1422,13 +1462,17 @@ void Change_CAN_channel(void)
     		Open_CAN_cannel();
     	}
 	}*/
+	EEPROM_Write(&hspi2,
+			EEPROM_SETINGS_ADDR + ((uint32_t)&eeprom_settings.numBus - (uint32_t)&eeprom_settings),
+			(uint8_t*)&eeprom_settings.numBus, sizeof(eeprom_settings.numBus));
 }
 
 void Next_CAN_channel (void)
 {
-	SysSettings.numBus++;
-	if(SysSettings.numBus >= 4) SysSettings.numBus = 0;
-	Change_CAN_channel();
+	eeprom_settings.numBus++;
+	if(eeprom_settings.numBus >= 4) eeprom_settings.numBus = 0;
+	//Change_CAN_channel();
+	Open_CAN_cannel();
 }
 
 void HAL_CAN_TxMailbox0CompleteCallback(CAN_HandleTypeDef *hcan)

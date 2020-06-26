@@ -32,6 +32,8 @@
 //#include "usbd_cdc_if.h"
 #include <stdlib.h>
 #include "button.h"
+#include "GVRET.h"
+#include "eeprom.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -86,6 +88,8 @@ uint8_t rx_led_z1 = 0;
 uint8_t tx_led_z1 = 0;
 uint8_t error_led_z1 = 0;
 
+uint8_t in[100], out[150];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -118,7 +122,7 @@ void UART_Check_Data_Ready(void)
 	}
 	else
 	{
-		if(conf.state == CAN_HACKER_CONNECT || conf.state == SAVVYCAN_CONNECT)
+		if(conf.state == LAWICEL_CONNECT || conf.state == SAVVYCAN_CONNECT)
 		{
 			if(CAN_Buffer_pull() == HAL_OK)
 			{
@@ -152,91 +156,6 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	can_rx_buf[0].timestamp = HAL_GetTick();
 	CAN_Buffer_Write_Data(can_rx_buf[0]);
 	HAL_GPIO_WritePin(RX_LED_GPIO_Port, RX_LED_Pin, GPIO_PIN_SET);
-}
-
-#define EEPROM_WREN		0x06
-#define EEPROM_WRDI		0x04
-#define EEPROM_RDSR		0x05
-#define EEPROM_WRSR		0x01
-#define EEPROM_READ		0x03
-#define EEPROM_WRIRE	0x02
-
-
-HAL_StatusTypeDef EEPROM_Read(SPI_HandleTypeDef *hspi, uint16_t address, uint8_t *pData, uint16_t Size)
-{
-	HAL_StatusTypeDef errorcode = HAL_OK;
-	uint8_t request[3];
-	request[0] = EEPROM_READ;
-	request[1] = address >> 8;
-	request[2] = address & 0xFF;
-
-	HAL_GPIO_WritePin(EEPROM_CS_GPIO_Port, EEPROM_CS_Pin, GPIO_PIN_RESET);
-	errorcode = HAL_SPI_Transmit(hspi, request, 3, 100);
-	if(errorcode != HAL_OK)
-	{
-		HAL_GPIO_WritePin(EEPROM_CS_GPIO_Port, EEPROM_CS_Pin, GPIO_PIN_SET);
-		return errorcode;
-	}
-
-	errorcode = HAL_SPI_Receive(hspi, pData, Size, 100);
-	HAL_GPIO_WritePin(EEPROM_CS_GPIO_Port, EEPROM_CS_Pin, GPIO_PIN_SET);
-	return errorcode;
-}
-
-
-HAL_StatusTypeDef EEPROM_Write(SPI_HandleTypeDef *hspi, uint16_t address, uint8_t *pData, uint16_t Size)
-{
-	HAL_StatusTypeDef errorcode = HAL_OK;
-	uint8_t request[3];
-	request[0] = EEPROM_WREN;
-
-	HAL_GPIO_WritePin(EEPROM_CS_GPIO_Port, EEPROM_CS_Pin, GPIO_PIN_RESET);
-	errorcode = HAL_SPI_Transmit(hspi, request, 4, 100);
-	HAL_GPIO_WritePin(EEPROM_CS_GPIO_Port, EEPROM_CS_Pin, GPIO_PIN_SET);
-	if(errorcode != HAL_OK) return errorcode;
-
-	request[0] = EEPROM_WRIRE;
-	request[1] = address >> 8;
-	request[2] = address & 0xFF;
-	HAL_GPIO_WritePin(EEPROM_CS_GPIO_Port, EEPROM_CS_Pin, GPIO_PIN_RESET);
-	errorcode = HAL_SPI_Transmit(hspi, request, 4, 100);
-	if(errorcode != HAL_OK)
-	{
-		HAL_GPIO_WritePin(EEPROM_CS_GPIO_Port, EEPROM_CS_Pin, GPIO_PIN_SET);
-		return errorcode;
-	}
-
-	errorcode = HAL_SPI_Transmit(hspi, pData, Size, 100);
-	HAL_GPIO_WritePin(EEPROM_CS_GPIO_Port, EEPROM_CS_Pin, GPIO_PIN_SET);
-	return errorcode;
-}
-
-HAL_StatusTypeDef EEPROM_Wait_ready(SPI_HandleTypeDef *hspi, uint32_t Timeout)
-{
-	  uint32_t tickstart = 0U;
-	  HAL_StatusTypeDef errorcode = HAL_OK;
-	  uint8_t request[1];
-	  tickstart = HAL_GetTick();
-	  request[0] = EEPROM_RDSR;
-
-	  HAL_GPIO_WritePin(EEPROM_CS_GPIO_Port, EEPROM_CS_Pin, GPIO_PIN_RESET);
-	  errorcode = HAL_SPI_Transmit(hspi, request, 1, Timeout);
-
-	  if(errorcode != HAL_OK)
-	  {
-	  	HAL_GPIO_WritePin(EEPROM_CS_GPIO_Port, EEPROM_CS_Pin, GPIO_PIN_SET);
-	  	return errorcode;
-	  }
-
-	  do{
-		errorcode = HAL_SPI_Receive(hspi, request, 1, Timeout);
-		if(errorcode == HAL_BUSY || ((HAL_GetTick()-tickstart) >=  Timeout))
-		{
-			return HAL_BUSY;
-		}
-	  }while(request[0]);
-
-	  return HAL_OK;
 }
 
 
@@ -283,10 +202,27 @@ int main(void)
   HAL_Delay(100);
 
 
-  //EEPROM_Wait_ready(&hspi2, 50000);
-//  EEPROM_Write(&hspi2, 0, test_str, sizeof(test_str));
-//  HAL_Delay(100);
-//  EEPROM_Read(&hspi2, 0, (uint8_t*)&eeprom_settings, sizeof(eeprom_settings));
+  EEPROM_Write_disable(&hspi2, 1000);
+
+
+ // first initialization
+  boolean first = false;
+  EEPROM_Read(&hspi2, EEPROM_SETINGS_ADDR, (uint8_t*)&eeprom_settings, sizeof(eeprom_settings));
+  if(eeprom_settings.version == 0xFFFF || eeprom_settings.version < EEPROM_VERSION) {eeprom_settings.version = EEPROM_VERSION; first = true;}
+  if(eeprom_settings.eeprom_size == 0xFFFF) {eeprom_settings.eeprom_size = EEPROM_SIZE; first = true;}
+  if(eeprom_settings.number_of_busses == 0xFF) {eeprom_settings.number_of_busses = 4; first = true;}
+  if(eeprom_settings.start_address_csript == 0xFFFF) {eeprom_settings.start_address_csript = EEPROM_SCRIPT_ADDR; first = true;}
+  if(eeprom_settings.numBus == 0xFF) {eeprom_settings.numBus = 0; first = true;}
+  for(int i=0; i<4;i++)
+  {
+	  if(eeprom_settings.CAN_Speed[i] == 0xFFFFFFFF) {eeprom_settings.CAN_Speed[i] = (i!=3) ? 500000 : 10417; first = true;}
+	  if(eeprom_settings.CAN_mode[i] == 0xFFFFFFFF) {eeprom_settings.CAN_mode[i] = CAN_MODE_SILENT; first = true;}
+  }
+  if(eeprom_settings.UART_Speed == 0xFFFF) {eeprom_settings.UART_Speed = 115200; first = true;}
+
+  if(first == true) EEPROM_Write(&hspi2, EEPROM_SETINGS_ADDR, (uint8_t*)&eeprom_settings, sizeof(eeprom_settings));
+
+
 
 
   if(HAL_GPIO_ReadPin(BOOT1_GPIO_Port, BOOT1_Pin) == 1)
@@ -298,12 +234,12 @@ int main(void)
 	  huart3.Init.BaudRate = (eeprom_settings.UART_Speed > 0 && eeprom_settings.UART_Speed < 10000000) ? eeprom_settings.UART_Speed : 115200;
   }
   HAL_UART_Init(&huart3);
+  Change_CAN_channel();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  //SendToUart();
-  //HAL_UART_Receive_DMA(&huart1, uart_rx_bufer, 2);
+
   while (1)
   {
 

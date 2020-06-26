@@ -93,6 +93,11 @@ void Error_Handler(void);
 #define HS_CAN_EN_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
+#define EEPROM_VERSION 1
+#define EEPROM_SIZE	0x2000
+#define EEPROM_SETINGS_ADDR	0x00
+#define EEPROM_SCRIPT_ADDR	0x100
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
