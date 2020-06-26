@@ -10,8 +10,7 @@
 #include <math.h>
 #include "eeprom.h"
 
-//EEPROMSettings settings;
-//SystemSettings SysSettings;
+
 // command buffer
 uint8_t cmd_buf[CMD_BUFFER_LENGTH];
 // command buffer index
