@@ -879,6 +879,18 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
 
         	break;
 
+        case HELP:
+        	conf.help_print = true;
+        	conf.help_text_pointer = 0;
+        	break;
+
+        case RESET:
+        	if(cmd_buf[1] == 'R' && cmd_buf[2] == 'S' && cmd_buf[3] == 'T')
+        	{
+        		NVIC_SystemReset();
+        	}
+        	break;
+
             // end with error on unknown commands
         default:
 

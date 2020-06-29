@@ -107,6 +107,8 @@ typedef enum
 #define START_SCRIPT		'X' // start script
 #define START_LOGGING		'H' // start logging
 #define STOP_LOGGING		'h' // stop logging
+#define HELP				'?' // list of supported commands
+#define RESET				'!' // !RST - reset
 
 #define TIME_STAMP_TICK 1000	// microseconds
 #define CMD_BUFFER_LENGTH  30
@@ -272,6 +274,8 @@ typedef struct
 	uint32_t script_timestamp;
 	uint32_t script_delay;
 	boolean script_delay_active;
+	boolean help_print;
+	uint16_t help_text_pointer;
 } conf_t;
 
 extern t_eeprom_settings eeprom_settings;

@@ -93,6 +93,8 @@ uint8_t error_led_z1 = 0;
 uint8_t script_buf[CMD_BUFFER_LENGTH];
 uint8_t script_buf_pointer = 0;
 
+extern const char help_text[];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -155,6 +157,24 @@ void UART_Check_Data_Ready(void)
 			uart_tx_pointer = 0;
 			uart_busy = 1;
 		}
+		if(conf.help_print)
+				{
+					uart_tx_pointer = 0;
+					for(int i = conf.help_text_pointer; i < conf.help_text_pointer + 128; i++)
+					{
+						uart_tx_bufer[uart_tx_pointer++] = help_text[i];
+						if(help_text[i] == '\0')
+						{
+							uart_tx_pointer--;
+							conf.help_print = false;
+							break;
+						}
+					}
+					conf.help_text_pointer += 128;
+					HAL_UART_Transmit_DMA(huart_active, uart_tx_bufer, uart_tx_pointer);
+					uart_tx_pointer = 0;
+					uart_busy = 1;
+				}
 	}
 
 }
