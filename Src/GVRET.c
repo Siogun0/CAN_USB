@@ -13,6 +13,7 @@
 
 // command buffer
 uint8_t cmd_buf[CMD_BUFFER_LENGTH];
+
 // command buffer index
 uint8_t buf_ind = 0;
 
@@ -70,6 +71,11 @@ HAL_StatusTypeDef CAN_Buffer_pull(void)
 	{
 		return HAL_BUSY;
 	}
+}
+
+void CAN_Buffer_clean(void)
+{
+	CAN_Buffer.Pointer_Read = CAN_Buffer.Pointer_Write;
 }
 
 HAL_StatusTypeDef CAN_Buffer_Write_Data(can_msg_t msg)
@@ -419,6 +425,21 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
 {
     uint8_t cmd_len = strlen ((char *)cmd_buf);	// get command length
 
+    if(conf.scpipt_saving == true && cmd_buf[0] != PROGRAM_SCRIPT)
+    {
+    	if(conf.script_address < eeprom_settings.start_address_csript || conf.script_address > eeprom_settings.eeprom_size-2)
+    	{
+    		conf.script_address = eeprom_settings.start_address_csript;
+    	}
+    	if(conf.script_address + cmd_len >= eeprom_settings.eeprom_size-2) return ERROR;
+    	cmd_buf[cmd_len++] = CR;
+    	if(EEPROM_Write(&hspi2, conf.script_address, cmd_buf, cmd_len) == HAL_OK)
+    	{
+    		conf.script_address += cmd_len;
+    		return CR;
+    	}
+    	else return ERROR;
+    }
 
     switch (cmd_buf[0]) {
             // get serial number
@@ -805,6 +826,58 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         	Open_CAN_cannel();
         	return CR;
 
+
+        case PROGRAM_SCRIPT:
+            if(cmd_buf[1] == '1')
+            {
+            	conf.scpipt_saving = true;
+            	conf.state = IDLE_ST;
+            	conf.script_address = eeprom_settings.start_address_csript;
+            }
+            else if(cmd_buf[1] == '0')
+            {
+            	uint8_t terminator = 0xFF;
+            	conf.scpipt_saving = false;
+            	EEPROM_Write(&hspi2, conf.script_address, &terminator, 1);
+            }
+            else if(cmd_buf[1] == '2')
+            {
+            	conf.script_print = true;
+            }
+        	return CR;
+
+        case JUMP_MARKER:
+        	if(conf.script_run)	conf.script_loop_address = conf.script_address;
+        	break;
+
+        case DELAY_MS:
+        	conf.script_delay = 0;
+        	for(int i = 1; i < cmd_len; i++)
+        	{
+        		if(cmd_buf[i] < '0' || cmd_buf[i] > '9') return ERROR;
+        		conf.script_delay *= 10;
+        		conf.script_delay += HexTo4bits(cmd_buf[i]);
+        	}
+        	conf.script_timestamp = HAL_GetTick();
+        	conf.script_delay_active = true;
+        	break;
+
+        case STOP_SCRIPT:
+        	conf.script_run = false;
+        	break;
+
+        case START_SCRIPT:
+        	conf.script_address = eeprom_settings.start_address_csript;
+        	conf.script_run = true;
+        	break;
+
+        case STOP_LOGGING:
+
+        	break;
+
+        case START_LOGGING:
+
+        	break;
 
             // end with error on unknown commands
         default:
@@ -1471,6 +1544,7 @@ void Next_CAN_channel (void)
 	eeprom_settings.numBus++;
 	if(eeprom_settings.numBus >= 4) eeprom_settings.numBus = 0;
 	//Change_CAN_channel();
+
 	Open_CAN_cannel();
 }
 

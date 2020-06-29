@@ -100,13 +100,13 @@ typedef enum
 #define SET_USART_BTR_CUST	'u' // set USART bitrate
 #define SET_USART_BTR		'U' // set USART bitrate
 #define SELECT_BUS_CHANEL	'B' // select channel CAN/LIN
-#define PROGRAM_SCRIPT		'P' // start = 1/stop = 0 saving commands to memory
+#define PROGRAM_SCRIPT		'P' // start = 1/stop = 0/print = 2 saving commands to memory
 #define JUMP_MARKER			'J' // marker for jump script after end (loop start)
 #define DELAY_MS			'D' // delay before next script command
-#define STOP_SCRIPT			'X' // stop script
-#define START_SCRIPT		'x' // start script
-#define START_LOGGING		'h' // start logging
-#define STOP_LOGGING		'H' // stop logging
+#define STOP_SCRIPT			'x' // stop script
+#define START_SCRIPT		'X' // start script
+#define START_LOGGING		'H' // start logging
+#define STOP_LOGGING		'h' // stop logging
 
 #define TIME_STAMP_TICK 1000	// microseconds
 #define CMD_BUFFER_LENGTH  30
@@ -178,7 +178,7 @@ typedef struct {
     uint32_t CAN_mode[4];
 } SystemSettings;
 
-typedef struct {
+volatile typedef struct {
 	uint16_t version;
 	uint16_t eeprom_size;
 	uint8_t number_of_busses;
@@ -264,6 +264,14 @@ typedef struct
 	boolean timestamp_en;
 	boolean useBinarySerialComm;
 	boolean CAN_Enable[4];
+	boolean scpipt_saving;
+	boolean script_run;
+	boolean script_print;
+	uint16_t script_address;
+	uint16_t script_loop_address;
+	uint32_t script_timestamp;
+	uint32_t script_delay;
+	boolean script_delay_active;
 } conf_t;
 
 extern t_eeprom_settings eeprom_settings;
@@ -282,6 +290,7 @@ uint16_t BuildFrameToUSB (can_msg_t frame, int whichBus, uint8_t * buf);
 HAL_StatusTypeDef CAN_Buffer_pull(void);
 HAL_StatusTypeDef CAN_Buffer_Write_Data(can_msg_t msg);
 void CAN_Buffer_Init(void);
+void CAN_Buffer_clean(void);
 HAL_StatusTypeDef Open_CAN_cannel(void);
 HAL_StatusTypeDef Close_CAN_cannel(void);
 void Change_CAN_channel(void);
@@ -289,6 +298,7 @@ void Next_CAN_channel (void);
 HAL_StatusTypeDef Close_LIN_cannel(void);
 HAL_StatusTypeDef Open_LIN_cannel(void);
 void STM_bxCAN_calc(uint32_t freq, float bitrate, CAN_HandleTypeDef * hcan);
+uint8_t exec_usb_cmd (uint8_t * cmd_buf);
 #endif /* GVRET_H_ */
 
 

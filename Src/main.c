@@ -88,7 +88,10 @@ uint8_t rx_led_z1 = 0;
 uint8_t tx_led_z1 = 0;
 uint8_t error_led_z1 = 0;
 
-uint8_t in[100], out[150];
+//uint8_t in[100], out[150];
+
+uint8_t script_buf[CMD_BUFFER_LENGTH];
+uint8_t script_buf_pointer = 0;
 
 /* USER CODE END PV */
 
@@ -98,7 +101,7 @@ void SystemClock_Config(void);
 void ConvertValToString(int64_t n, uint8_t s[]);
 void SendToUart_CanHacker(can_msg_t msg);
 
-uint8_t exec_usb_cmd (uint8_t * cmd_buf);
+
 void UART_Check_Data_Ready(void);
 /* USER CODE END PFP */
 
@@ -130,7 +133,28 @@ void UART_Check_Data_Ready(void)
 				//HAL_GPIO_WritePin(RX_LED_GPIO_Port, RX_LED_Pin, GPIO_PIN_RESET);
 			}
 		}
+		else
+		{
+			CAN_Buffer_clean();
+		}
 
+		if(conf.script_print)
+		{
+			uart_tx_pointer = 0;
+			for(conf.script_address = eeprom_settings.start_address_csript; conf.script_address < (eeprom_settings.start_address_csript + 128); conf.script_address++)
+			{
+				EEPROM_Read(&hspi2, conf.script_address, &uart_tx_bufer[uart_tx_pointer++], 1);
+				if(uart_tx_bufer[uart_tx_pointer-1] == 0xFF)
+				{
+					uart_tx_pointer--;
+					conf.script_print = false;
+					break;
+				}
+			}
+			HAL_UART_Transmit_DMA(huart_active, uart_tx_bufer, uart_tx_pointer);
+			uart_tx_pointer = 0;
+			uart_busy = 1;
+		}
 	}
 
 }
@@ -206,16 +230,19 @@ int main(void)
 
 
  // first initialization
-  boolean first = false;
+  volatile boolean first = false;
   EEPROM_Read(&hspi2, EEPROM_SETINGS_ADDR, (uint8_t*)&eeprom_settings, sizeof(eeprom_settings));
   if(eeprom_settings.version == 0xFFFF || eeprom_settings.version < EEPROM_VERSION) {eeprom_settings.version = EEPROM_VERSION; first = true;}
   if(eeprom_settings.eeprom_size == 0xFFFF) {eeprom_settings.eeprom_size = EEPROM_SIZE; first = true;}
   if(eeprom_settings.number_of_busses == 0xFF) {eeprom_settings.number_of_busses = 4; first = true;}
   if(eeprom_settings.start_address_csript == 0xFFFF) {eeprom_settings.start_address_csript = EEPROM_SCRIPT_ADDR; first = true;}
   if(eeprom_settings.numBus == 0xFF) {eeprom_settings.numBus = 0; first = true;}
+  if(eeprom_settings.CAN_Speed[0] == 0xFFFFFFFF) {eeprom_settings.CAN_Speed[0] = 500000; first = true;}
+  if(eeprom_settings.CAN_Speed[1] == 0xFFFFFFFF) {eeprom_settings.CAN_Speed[1] = 125000; first = true;}
+  if(eeprom_settings.CAN_Speed[2] == 0xFFFFFFFF) {eeprom_settings.CAN_Speed[2] = 33333; first = true;}
+  if(eeprom_settings.CAN_Speed[3] == 0xFFFFFFFF) {eeprom_settings.CAN_Speed[3] = 10417; first = true;}
   for(int i=0; i<4;i++)
   {
-	  if(eeprom_settings.CAN_Speed[i] == 0xFFFFFFFF) {eeprom_settings.CAN_Speed[i] = (i!=3) ? 500000 : 10417; first = true;}
 	  if(eeprom_settings.CAN_mode[i] == 0xFFFFFFFF) {eeprom_settings.CAN_mode[i] = CAN_MODE_SILENT; first = true;}
   }
   if(eeprom_settings.UART_Speed == 0xFFFF) {eeprom_settings.UART_Speed = 115200; first = true;}
@@ -235,6 +262,11 @@ int main(void)
   }
   HAL_UART_Init(&huart3);
   Change_CAN_channel();
+
+  conf.script_run = true;
+  conf.scpipt_saving = false;
+  conf.script_address = eeprom_settings.start_address_csript;
+  conf.script_loop_address = 0xFFFF;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -255,6 +287,58 @@ int main(void)
 		  Check_Command(uart_rx_char);
 
 	  }
+
+	  if(conf.script_run == true)
+	  {
+		  if(conf.script_delay_active && HAL_GetTick() - conf.script_timestamp < conf.script_delay)
+		  {
+			  ;
+		  }
+		  else
+		  {
+			  uint8_t in_byte;
+			  conf.script_delay_active = false;
+			  EEPROM_Read(&hspi2, conf.script_address, &in_byte, 1);
+			  if(in_byte == CR)
+			  {
+				  exec_usb_cmd(script_buf);
+				  for(;script_buf_pointer > 0; script_buf_pointer--)
+				  {
+					  script_buf[script_buf_pointer] = 0;
+				  }
+				  script_buf_pointer = 0;
+				  if(conf.script_address < eeprom_settings.eeprom_size-1) conf.script_address++;
+				  else conf.script_run = false;
+			  }
+			  else if(in_byte == 0xFF)
+			  {
+				  script_buf_pointer = 0;
+				  if(conf.script_loop_address >= eeprom_settings.start_address_csript && conf.script_loop_address != 0xFFFF)
+				  {
+					  conf.script_address = conf.script_loop_address;
+				  }
+				  else
+				  {
+					  conf.script_run = false;
+					  conf.script_address = eeprom_settings.start_address_csript;
+					  script_buf_pointer = 0;
+				  }
+			  }
+			  else
+			  {
+				  script_buf[script_buf_pointer] = in_byte;
+				  script_buf_pointer++;
+				  if(conf.script_address < (eeprom_settings.eeprom_size-1) && script_buf_pointer < CMD_BUFFER_LENGTH) conf.script_address++;
+				  else conf.script_run = false;
+			  }
+		  }
+
+	  }
+	  else
+	  {
+		  conf.script_delay_active = false;
+	  }
+
 
 		if(HAL_GetTick() - time_stamp_UART >= 20 && uart_busy == 0)
 		{
