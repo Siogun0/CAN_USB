@@ -390,12 +390,12 @@ void setPromiscuousMode()
     }*/
 }
 
-HAL_StatusTypeDef SetFilterCAN(uint32_t id, uint32_t mask)
+HAL_StatusTypeDef SetFilterCAN(uint32_t id, uint32_t mask_or_id, uint32_t mode, uint32_t num)
 {
-	 if(mask == 0)
+	 if(mask_or_id == 0 && mode == CAN_FILTERMODE_IDMASK)
 	 {
  		  CAN_FilterTypeDef CAN_FilterStructure;
- 		  CAN_FilterStructure.FilterBank = 1;
+ 		  CAN_FilterStructure.FilterBank = 0;
  		  CAN_FilterStructure.FilterMode = CAN_FILTERMODE_IDMASK;
  		  CAN_FilterStructure.FilterFIFOAssignment = CAN_FILTER_FIFO1;
  		  CAN_FilterStructure.FilterMaskIdHigh = 0xFFFF;
@@ -413,10 +413,29 @@ HAL_StatusTypeDef SetFilterCAN(uint32_t id, uint32_t mask)
  		  CAN_FilterStructure.FilterMaskIdLow = 0;
  		  CAN_FilterStructure.FilterFIFOAssignment = CAN_FILTER_FIFO0;
  		  if(HAL_CAN_ConfigFilter(&hcan, &CAN_FilterStructure) != HAL_OK) return HAL_ERROR;
+
+// 		  CAN_FilterStructure.FilterActivation = CAN_FILTER_DISABLE;
+// 		  for(int i = 1; i < 14; i++)
+// 		  {
+// 			 CAN_FilterStructure.FilterBank = i;
+// 			 HAL_CAN_ConfigFilter(&hcan, &CAN_FilterStructure);
+// 		  }
 	 }
 	 else
 	 {
+		  CAN_FilterTypeDef CAN_FilterStructure;
+		  CAN_FilterStructure.FilterBank = num;
+		  CAN_FilterStructure.FilterMode = mode;
 
+		  CAN_FilterStructure.FilterMaskIdHigh = mask_or_id >> 16;
+		  CAN_FilterStructure.FilterMaskIdLow = mask_or_id & 0xFFFF;
+		  CAN_FilterStructure.FilterIdHigh = id >> 16;
+		  CAN_FilterStructure.FilterIdLow = id & 0xFFFF;
+		  CAN_FilterStructure.FilterScale = CAN_FILTERSCALE_32BIT;
+		  CAN_FilterStructure.FilterActivation = CAN_FILTER_ENABLE;
+
+		  CAN_FilterStructure.FilterFIFOAssignment = CAN_FILTER_FIFO0;
+		  if(HAL_CAN_ConfigFilter(&hcan, &CAN_FilterStructure) != HAL_OK) return HAL_ERROR;
 	 }
 	 return HAL_OK;
 }
@@ -431,14 +450,14 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
     	{
     		conf.script_address = eeprom_settings.start_address_csript;
     	}
-    	if(conf.script_address + cmd_len >= eeprom_settings.eeprom_size-2) return ERROR;
+    	if(conf.script_address + cmd_len >= eeprom_settings.eeprom_size-2) ;//return ERROR;
     	cmd_buf[cmd_len++] = CR;
     	if(EEPROM_Write(&hspi2, conf.script_address, cmd_buf, cmd_len) == HAL_OK)
     	{
     		conf.script_address += cmd_len;
-    		return CR;
+    		//return CR;
     	}
-    	else return ERROR;
+    	//else return ERROR;
     }
 
     switch (cmd_buf[0]) {
@@ -496,11 +515,50 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
             HAL_CAN_ResetError(&hcan);
             return CR;
 
-            // set AMR
-        case SET_AMR:
-            // set ACR
-        case SET_ACR:
+
+        case SET_FILTER_ID:
+        	if(cmd_len != 9) return ERROR;
+            conf.filter_id = HexTo4bits(cmd_buf[1]) << 28 |
+            				 HexTo4bits(cmd_buf[2]) << 24 |
+							 HexTo4bits(cmd_buf[3]) << 20 |
+							 HexTo4bits(cmd_buf[4]) << 16 |
+							 HexTo4bits(cmd_buf[5]) << 12 |
+							 HexTo4bits(cmd_buf[6]) << 8 |
+							 HexTo4bits(cmd_buf[7]) << 4 |
+							 HexTo4bits(cmd_buf[8]) << 0 ;
+        	return CR;
+        case SET_FILTER_MASK:
+        	if(cmd_len != 9) return ERROR;
+            conf.filter_mask = HexTo4bits(cmd_buf[1]) << 28 |
+            				 HexTo4bits(cmd_buf[2]) << 24 |
+							 HexTo4bits(cmd_buf[3]) << 20 |
+							 HexTo4bits(cmd_buf[4]) << 16 |
+							 HexTo4bits(cmd_buf[5]) << 12 |
+							 HexTo4bits(cmd_buf[6]) << 8 |
+							 HexTo4bits(cmd_buf[7]) << 4 |
+							 HexTo4bits(cmd_buf[8]) << 0 ;
             return CR;
+        case SET_FILTER:
+        	if(cmd_len == 3)
+        	{
+        		conf.filter_num = HexTo4bits(cmd_buf[1]);
+        		conf.filter_mode = cmd_buf[2] == 'I' ? CAN_FILTERMODE_IDLIST : cmd_buf[2] == 'M' ? CAN_FILTERMODE_IDMASK : 0xFF;
+        	}
+        	else if(cmd_len == 4)
+        	{
+        		conf.filter_num = HexTo4bits(cmd_buf[1]) * 10 + HexTo4bits(cmd_buf[2]);
+        		conf.filter_mode = cmd_buf[3] == 'I' ? CAN_FILTERMODE_IDLIST : cmd_buf[3] == 'M' ? CAN_FILTERMODE_IDMASK : 0xFF;
+        	}
+        	else
+        	{
+        		return ERROR;
+        	}
+        	if(conf.filter_num > 14 || conf.filter_mode == 0xFF) return ERROR;
+
+        	Close_CAN_cannel();
+        	SetFilterCAN(conf.filter_id, conf.filter_mask, conf.filter_mode, conf.filter_num);
+        	Open_CAN_cannel();
+        	return CR;
 
             // set bitrate via BTR
         case SET_CUSTOM_BTR:
@@ -594,7 +652,7 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
             	eeprom_settings.CAN_mode[eeprom_settings.numBus] = CAN_MODE_NORMAL;
             	if(Open_CAN_cannel() != HAL_OK) return ERROR;
         	}
-
+        	conf.CAN_Enable[eeprom_settings.numBus] = true;
 
     		conf.state = LAWICEL_CONNECT;
             return CR;
@@ -612,6 +670,7 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         		HAL_CAN_ResetError(&hcan);
         		if(Close_CAN_cannel() != HAL_OK) return ERROR;
         	}
+        	conf.CAN_Enable[eeprom_settings.numBus] = false;
             return CR;
 
             // send 11bit ID message
@@ -775,6 +834,7 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         	eeprom_settings.CAN_mode[eeprom_settings.numBus] = CAN_MODE_SILENT;
         	if(Open_CAN_cannel() != HAL_OK) return ERROR;
     		conf.state = LAWICEL_CONNECT;
+    		conf.CAN_Enable[eeprom_settings.numBus] = true;
             return CR;
 
             //Set USART bitrate
@@ -1413,7 +1473,7 @@ void Check_Command(uint8_t in_byte)
 
                     if (build_int & 0x80000000) { //signals that enabled and listen only status are also being passed
                     	if ((build_int & 0x60000000) == 0x60000000) {
-                    		conf.CAN_Enable[32] = true;
+                    		conf.CAN_Enable[3] = true;
                             eeprom_settings.CAN_mode[3] = CAN_MODE_SILENT;
                             conf.state = SAVVYCAN_CONNECT;
                             eeprom_settings.numBus = 3;
@@ -1486,7 +1546,7 @@ HAL_StatusTypeDef Open_CAN_cannel()
 				EEPROM_SETINGS_ADDR + ((uint32_t)&eeprom_settings.CAN_mode[eeprom_settings.numBus] - (uint32_t)&eeprom_settings),
 				(uint8_t*)&eeprom_settings.CAN_mode[eeprom_settings.numBus], sizeof(eeprom_settings.CAN_mode[eeprom_settings.numBus]));
 
-		  if(SetFilterCAN(0, 0) != HAL_OK) return HAL_ERROR;
+		  //if(SetFilterCAN(0, 0, 0, 0) != HAL_OK) return HAL_ERROR;
 		  if(HAL_CAN_Start(&hcan) != HAL_OK) return HAL_ERROR;
 		  if(HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING |
 				  	  	  	  	  	  	  	  	 CAN_IT_RX_FIFO0_FULL |

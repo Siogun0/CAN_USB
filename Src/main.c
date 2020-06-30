@@ -137,7 +137,7 @@ void UART_Check_Data_Ready(void)
 		}
 		else
 		{
-			CAN_Buffer_clean();
+			//CAN_Buffer_clean();
 		}
 
 		if(conf.script_print)
@@ -281,12 +281,15 @@ int main(void)
 	  huart3.Init.BaudRate = (eeprom_settings.UART_Speed > 0 && eeprom_settings.UART_Speed < 10000000) ? eeprom_settings.UART_Speed : 115200;
   }
   HAL_UART_Init(&huart3);
-  Change_CAN_channel();
+
 
   conf.script_run = true;
   conf.scpipt_saving = false;
   conf.script_address = eeprom_settings.start_address_csript;
   conf.script_loop_address = 0xFFFF;
+
+  SetFilterCAN(0,0,CAN_FILTERMODE_IDMASK,0);
+  Change_CAN_channel();
   /* USER CODE END 2 */
 
   /* Infinite loop */
