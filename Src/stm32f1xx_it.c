@@ -329,6 +329,11 @@ void USART3_IRQHandler(void)
 			return;
 		}
 	}
+	else
+	{
+		uart_rx_char = USART3->DR; // Lost char
+		return;
+	}
 
 
   /* USER CODE END USART3_IRQn 0 */

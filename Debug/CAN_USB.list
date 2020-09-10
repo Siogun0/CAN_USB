@@ -12286,7 +12286,7 @@ void USART2_IRQHandler(void)
  8004cde:	6813      	ldr	r3, [r2, #0]
 	if(errorflags == 0)
  8004ce0:	0718      	lsls	r0, r3, #28
- 8004ce2:	d117      	bne.n	8004d14 <USART3_IRQHandler+0x38>
+ 8004ce2:	d10e      	bne.n	8004d02 <USART3_IRQHandler+0x26>
 	{
 		/* UART in mode Receiver -------------------------------------------------*/
 		if(((USART3->SR & USART_SR_RXNE) != 0) && ((USART3->CR1 & USART_CR1_RXNEIE) != 0))
@@ -12306,33 +12306,30 @@ void USART2_IRQHandler(void)
  8004cf8:	3301      	adds	r3, #1
  8004cfa:	f3c3 0309 	ubfx	r3, r3, #0, #10
  8004cfe:	4283      	cmp	r3, r0
-			{
-				uart_rx_char = USART3->DR; // Lost char
-				return;
-			}
-
-			uart_rx_pointer_w = (uart_rx_pointer_w + 1) & 1023;
- 8004d00:	bf19      	ittee	ne
- 8004d02:	600b      	strne	r3, [r1, #0]
-
-			uart_rx_bufer[uart_rx_pointer_w] = USART3->DR;
- 8004d04:	6851      	ldrne	r1, [r2, #4]
-				uart_rx_char = USART3->DR; // Lost char
- 8004d06:	6852      	ldreq	r2, [r2, #4]
- 8004d08:	4b07      	ldreq	r3, [pc, #28]	; (8004d28 <USART3_IRQHandler+0x4c>)
-			uart_rx_bufer[uart_rx_pointer_w] = USART3->DR;
- 8004d0a:	bf16      	itet	ne
- 8004d0c:	4a07      	ldrne	r2, [pc, #28]	; (8004d2c <USART3_IRQHandler+0x50>)
-				uart_rx_char = USART3->DR; // Lost char
- 8004d0e:	701a      	strbeq	r2, [r3, #0]
-			uart_rx_bufer[uart_rx_pointer_w] = USART3->DR;
- 8004d10:	54d1      	strbne	r1, [r2, r3]
+ 8004d00:	d103      	bne.n	8004d0a <USART3_IRQHandler+0x2e>
+			return;
+		}
+	}
+	else
+	{
+		uart_rx_char = USART3->DR; // Lost char
+ 8004d02:	6852      	ldr	r2, [r2, #4]
+ 8004d04:	4b08      	ldr	r3, [pc, #32]	; (8004d28 <USART3_IRQHandler+0x4c>)
+ 8004d06:	701a      	strb	r2, [r3, #0]
   /* USER CODE END USART3_IRQn 0 */
   HAL_UART_IRQHandler(&huart3);
   /* USER CODE BEGIN USART3_IRQn 1 */
 
   /* USER CODE END USART3_IRQn 1 */
 }
+ 8004d08:	4770      	bx	lr
+			uart_rx_pointer_w = (uart_rx_pointer_w + 1) & 1023;
+ 8004d0a:	600b      	str	r3, [r1, #0]
+			uart_rx_bufer[uart_rx_pointer_w] = USART3->DR;
+ 8004d0c:	6851      	ldr	r1, [r2, #4]
+ 8004d0e:	4a07      	ldr	r2, [pc, #28]	; (8004d2c <USART3_IRQHandler+0x50>)
+ 8004d10:	54d1      	strb	r1, [r2, r3]
+			return;
  8004d12:	4770      	bx	lr
   HAL_UART_IRQHandler(&huart3);
  8004d14:	4806      	ldr	r0, [pc, #24]	; (8004d30 <USART3_IRQHandler+0x54>)
