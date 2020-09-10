@@ -308,6 +308,29 @@ void USART3_IRQHandler(void)
 {
   /* USER CODE BEGIN USART3_IRQn 0 */
 
+	uint32_t errorflags = 0x00U;
+	/* If no error occurs */
+	errorflags = (USART3->SR & (uint32_t)(USART_SR_PE | USART_SR_FE | USART_SR_ORE | USART_SR_NE));
+	if(errorflags == 0)
+	{
+		/* UART in mode Receiver -------------------------------------------------*/
+		if(((USART3->SR & USART_SR_RXNE) != 0) && ((USART3->CR1 & USART_CR1_RXNEIE) != 0))
+		{
+			//UART_Receive_IT(huart);
+			if(((uart_rx_pointer_w + 1) & 1023) == uart_rx_pointer_r)
+			{
+				uart_rx_char = USART3->DR; // Lost char
+				return;
+			}
+
+			uart_rx_pointer_w = (uart_rx_pointer_w + 1) & 1023;
+
+			uart_rx_bufer[uart_rx_pointer_w] = USART3->DR;
+			return;
+		}
+	}
+
+
   /* USER CODE END USART3_IRQn 0 */
   HAL_UART_IRQHandler(&huart3);
   /* USER CODE BEGIN USART3_IRQn 1 */

@@ -66,6 +66,8 @@ uint8_t uart_tx_com_bufer[32];
 uint8_t uart_answ_ready = 0;
 uint32_t uart_tx_pointer = 0;
 uint8_t uart_rx_bufer[1024];
+uint32_t uart_rx_pointer_w = 0;
+uint32_t uart_rx_pointer_r = 0;
 uint8_t uart_rx_char;
 
 
@@ -294,20 +296,32 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+#if 0
+  /* Enable the UART Parity Error Interrupt */
+  __HAL_UART_ENABLE_IT(&huart3, UART_IT_PE);
+
+  /* Enable the UART Error Interrupt: (Frame error, noise error, overrun error) */
+  __HAL_UART_ENABLE_IT(&huart3, UART_IT_ERR);
+#endif
+  /* Enable the UART Data Register not empty Interrupt */
+  __HAL_UART_ENABLE_IT(&huart3, UART_IT_RXNE);
 
   while (1)
   {
 
-	  //CDC_Transmit_FS(test_str, 5);
-	  //HAL_Delay(100);
-
-
-	  if(USART3->SR & USART_SR_RXNE) // TODO Сделать фоновый прием данных USART3
+//	  HAL_UART_Receive_IT(&huart3, uart_rx_bufer, 1);
+//	  if(USART3->SR & USART_SR_RXNE) // TODO пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ USART3
+//	  {
+//		  uart_rx_char = USART3->DR;
+//		  debug_buf[debug_pt++] = uart_rx_char;
+//		  if(debug_pt == 1024) debug_pt = 0;
+//		  Check_Command(uart_rx_char);
+//
+//	  }
+	  while(uart_rx_pointer_r != uart_rx_pointer_w) // Buffer UART RX reading
 	  {
-		  uart_rx_char = USART3->DR;
-		  debug_buf[debug_pt++] = uart_rx_char;
-		  if(debug_pt == 1024) debug_pt = 0;
-		  Check_Command(uart_rx_char);
+		  uart_rx_pointer_r = (uart_rx_pointer_r + 1) & 1023;
+		  Check_Command(uart_rx_bufer[uart_rx_pointer_r]);
 
 	  }
 

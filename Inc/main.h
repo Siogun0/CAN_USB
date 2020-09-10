@@ -44,6 +44,11 @@ extern "C" {
 /* USER CODE BEGIN EC */
 extern UART_HandleTypeDef *huart_active;
 extern UART_HandleTypeDef *huart_lin;
+
+extern uint8_t uart_rx_bufer[1024];
+extern uint32_t uart_rx_pointer_w;
+extern uint32_t uart_rx_pointer_r;
+extern uint8_t uart_rx_char;
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -55,6 +60,7 @@ extern UART_HandleTypeDef *huart_lin;
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
+void Check_Command(uint8_t uart_rx_char);
 
 /* USER CODE END EFP */
 
