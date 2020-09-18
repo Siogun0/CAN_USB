@@ -35,6 +35,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define EEPROM_PAGE		275 //this is within an eeprom space currently unused on GEVCU so it's safe
 #define EEPROM_VER		0x17
 
+#define LOG_FILE_SAVE_TIMEOUT 60000
+
 typedef enum
 {
 	false = 0,
@@ -106,7 +108,7 @@ typedef enum
 #define DELAY_MS			'D' // delay before next script command
 #define STOP_SCRIPT			'x' // stop script
 #define START_SCRIPT		'X' // start script
-#define START_LOGGING		'H' // start logging
+#define START_LOGGING		'H' // start logging. If H1 - Binary, H2 - GVRET, H3 - CRTD
 #define STOP_LOGGING		'h' // stop logging
 #define HELP				'?' // list of supported commands
 #define RESET				'!' // !RST - reset
@@ -254,10 +256,6 @@ typedef enum
 
 typedef struct
 {
-//	enum {STANDARD, EXTENDED} format;
-//	uint32_t id;
-//	enum {REMOTE, DATA} type;
-//	uint8_t length;
 	uint32_t timestamp;
 	CAN_RxHeaderTypeDef header;
 	union
@@ -290,6 +288,8 @@ typedef struct
 	uint32_t filter_mask;
 	uint32_t filter_num;
 	uint32_t filter_mode;
+	boolean sd_card_avalible;
+	boolean loger_run;
 } conf_t;
 
 extern t_eeprom_settings eeprom_settings;

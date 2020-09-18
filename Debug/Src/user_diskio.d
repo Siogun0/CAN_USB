@@ -29,7 +29,7 @@ Src/user_diskio.o: ../Src/user_diskio.c \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_rtc_ex.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_spi.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h ../Inc/GVRET.h \
- ../Middlewares/Third_Party/FatFs/src/ff.h
+ ../Middlewares/Third_Party/FatFs/src/ff.h ../Inc/fatfs_sd.h
 
 ../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h:
 
@@ -98,3 +98,5 @@ Src/user_diskio.o: ../Src/user_diskio.c \
 ../Inc/GVRET.h:
 
 ../Middlewares/Third_Party/FatFs/src/ff.h:
+
+../Inc/fatfs_sd.h:

@@ -285,6 +285,7 @@ int main(void)
 	  if(eeprom_settings.CAN_mode[i] == 0xFFFFFFFF) {eeprom_settings.CAN_mode[i] = CAN_MODE_SILENT; first = true;}
   }
   if(eeprom_settings.UART_Speed == 0xFFFF) {eeprom_settings.UART_Speed = 115200; first = true;}
+  if(eeprom_settings.fileOutputType > 10) {eeprom_settings.fileOutputType = CRTD_FILE; first = true;}
 
   if(first == true) EEPROM_Write(&hspi2, EEPROM_SETINGS_ADDR, (uint8_t*)&eeprom_settings, sizeof(eeprom_settings));
 
@@ -307,20 +308,6 @@ int main(void)
   conf.script_address = eeprom_settings.start_address_csript;
   conf.script_loop_address = 0xFFFF;
 
-  eeprom_settings.fileOutputType = CRTD_FILE;
-
-
-  fresult = f_mount(&fs, "0:", 1);
-
-
-  unsigned int nob;
-  do
-  {
-	  //uint8_t filename[] = "abcdefgh.log";
-	  Generate_Next_FileName(filename);
-	  fresult = f_open(&fil, filename, FA_WRITE | FA_CREATE_NEW | FA_CREATE_ALWAYS);
-  }
-  while(fresult == FR_EXIST);
 
 
 
@@ -438,22 +425,33 @@ int main(void)
 		}
 
 		//Save file, open NEW
-		CAN_Log_Buffer_pull();
-		if(HAL_GetTick() - time_stamp_SAVE >= 60000)
+		if(conf.sd_card_avalible == true)
 		{
-			time_stamp_SAVE = HAL_GetTick();
-			if(f_size(&fil) != 0)
+			HAL_StatusTypeDef buff_stat;
+
+			buff_stat = CAN_Log_Buffer_pull();
+
+			if(HAL_GetTick() - time_stamp_SAVE >= LOG_FILE_SAVE_TIMEOUT
+					|| ((conf.state == IDLE_ST || conf.loger_run == false) && buff_stat == HAL_BUSY))
 			{
-				fresult = f_close(&fil);
-				  do
-				  {
-					  //uint8_t filename[] = "abcdefgh.log";
-					  Generate_Next_FileName(filename);
-					  fresult = f_open(&fil, (const TCHAR*)filename, FA_WRITE | FA_CREATE_NEW | FA_CREATE_ALWAYS);
-				  }
-				  while(fresult == FR_EXIST);
+				time_stamp_SAVE = HAL_GetTick();
+				if(f_size(&fil) != 0)
+				{
+					fresult = f_close(&fil);
+					if(conf.loger_run == true)
+					{
+						  do
+						  {
+							  Generate_Next_FileName(filename);
+							  fresult = f_open(&fil, (const TCHAR*)filename, FA_WRITE | FA_CREATE_NEW | FA_CREATE_ALWAYS);
+						  }
+						  while(fresult == FR_EXIST);
+					}
+
+				}
 			}
 		}
+
 
 
 

@@ -1,14 +1,14 @@
 /*
  * help.c
  *
- *  Created on: 29 èþí. 2020 ã.
+ *  Created on: 29 ï¿½ï¿½ï¿½. 2020 ï¿½.
  *      Author: Arh
  */
 
 
 const char help_text[] =  "\r\
-S - set CAN bit rate \r \
-s - set CAN bit rate via \r \
+S - set fix CAN bit rate. 'S6' - 500k \r \
+s - set custum CAN bit rate via 's5000000' - 500k\r \
 O - open CAN channel \r \
 C - close CAN channel \r \
 t - send CAN message with 11bit ID \r \
@@ -22,16 +22,19 @@ V - get hardware and software version \r \
 v - get software version only \r \
 N - get device serial number \r \
 Z - toggle time stamp setting, 'Z1' - ON, 'Z0' - OFF \r \
-L - switch to listen only mode \r \
+L - open CAN in listen only mode \r \
 u - set custom USART bitrate 'u115200' \r \
-U - set USART bitrate \r \
+U - set USART bitrate 'U1' - 115200\r \
 B - select channel CAN/LIN 'B1' - CAN1\r \
+=== Script === \
 P - Programm script: start = 'P1', stop = 'P0', print = 'P2' \r \
 J - marker for jump script after end \r \
 D - delay before next script command 'D1000' - 1sec\r \
 x - stop script \r \
 X - start script \r \
-H - start logging \r \
+=== Logging === \
+H - start(format) logging. If H1 - Binary, H2 - GVRET, H3 - CRTD \r \
 h - stop logging \r \
+=== Misc === \
 ? - list of supported commands \r \
-! - '!RST' - reset \0";
+!RST - reset \0";

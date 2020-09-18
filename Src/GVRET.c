@@ -6,6 +6,7 @@
  */
 #include "GVRET.h"
 #include "can.h"
+#include <stdio.h>
 #include <string.h>
 #include <math.h>
 #include "eeprom.h"
@@ -35,11 +36,12 @@ extern uint8_t flash_buffer[128];
 extern FRESULT fresult;
 extern FATFS fs;
 extern FIL fil;
+extern uint8_t filename[];
 
 uint32_t CAN_mailbox;
 HAL_StatusTypeDef CAN_status;
-uint8_t CAN_Tx_buffer[8] = {0};
 CAN_TxHeaderTypeDef CAN_TxHeader;
+can_msg_t can_tx_msg;
 uint32_t uart_speed;
 
 t_eeprom_settings eeprom_settings;
@@ -479,8 +481,8 @@ uint16_t BuildFrameToUSB (can_msg_t frame, int whichBus, uint8_t * buf)
 uint16_t BuildFrameToFile(can_msg_t frame, int whichBus, uint8_t * buff)
 {
    // uint8_t buff[40];
-    uint8_t temp;
-    uint32_t id_temp;
+    //uint8_t temp;
+    unsigned int id_temp;
     uint32_t pointer = 0;
     if (eeprom_settings.fileOutputType == BINARYFILE) {
     	if (frame.header.IDE == CAN_ID_EXT) id_temp = frame.header.ExtId | 1 << 31;
@@ -501,7 +503,7 @@ uint16_t BuildFrameToFile(can_msg_t frame, int whichBus, uint8_t * buff)
     } else if (eeprom_settings.fileOutputType == GVRET_FILE) {
     	if (frame.header.IDE == CAN_ID_EXT) id_temp = frame.header.ExtId;
     	else id_temp = frame.header.StdId;
-        sprintf((char *)buff, "%i,%x,%i,%i,%i", (int)frame.timestamp, id_temp, frame.header.IDE, whichBus, frame.header.DLC);
+        sprintf((char *)buff, "%i,%x,%i,%i,%i", (int)frame.timestamp, id_temp, (int)frame.header.IDE, whichBus, (int)frame.header.DLC);
         //Logger::fileRaw(buff, strlen((char *)buff));
         pointer = strlen((char *)buff);
 
@@ -526,10 +528,13 @@ uint16_t BuildFrameToFile(can_msg_t frame, int whichBus, uint8_t * buff)
 
     } else if (eeprom_settings.fileOutputType == CRTD_FILE) {
         int idBits = 11;
-        if (frame.header.IDE) idBits = 29;
-        if (frame.header.IDE == CAN_ID_EXT) id_temp = frame.header.ExtId;
+        if (frame.header.IDE == CAN_ID_EXT)
+        {
+        	idBits = 29;
+        	id_temp = frame.header.ExtId;
+        }
         else id_temp = frame.header.StdId;
-        sprintf((char *)buff, "%i.%u %c%i %x", frame.timestamp / 1000, frame.timestamp % 1000, (frame.can_dir == DIR_TRANSMIT)?'T':'R', idBits, id_temp);
+        sprintf((char *)buff, "%i.%u %c%i %x", (int)(frame.timestamp / 1000), (int)(frame.timestamp % 1000), (frame.can_dir == DIR_TRANSMIT)?'T':'R', idBits, id_temp);
 
         pointer = strlen((char *)buff);
 
@@ -873,17 +878,27 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
             	return ERROR;
             }
 
+
         	CAN_TxHeader.StdId = (HexTo4bits(cmd_buf[1]) << 8) | HexToShort(cmd_buf[2], cmd_buf[3]);
 
         	CAN_TxHeader.IDE = CAN_ID_STD;
         	CAN_TxHeader.RTR = CAN_RTR_REMOTE;
         	CAN_TxHeader.DLC = HexTo4bits(cmd_buf[4]);
         	HAL_GPIO_WritePin(TX_LED_GPIO_Port, TX_LED_Pin, GPIO_PIN_SET);
-        	CAN_status = HAL_CAN_AddTxMessage(&hcan, &CAN_TxHeader, CAN_Tx_buffer, &CAN_mailbox);
+        	CAN_status = HAL_CAN_AddTxMessage(&hcan, &CAN_TxHeader, can_tx_msg.data_byte, &CAN_mailbox);
         	if(CAN_status != HAL_OK)
         	{
         		return ERROR;
         	}
+
+        	can_tx_msg.timestamp = HAL_GetTick();
+        	can_tx_msg.can_dir = DIR_TRANSMIT;
+        	can_tx_msg.header.DLC = CAN_TxHeader.DLC;
+        	can_tx_msg.header.ExtId = CAN_TxHeader.ExtId;
+        	can_tx_msg.header.StdId = CAN_TxHeader.StdId;
+        	can_tx_msg.header.RTR = CAN_TxHeader.RTR;
+        	can_tx_msg.header.IDE = CAN_TxHeader.IDE;
+        	CAN_Log_Buffer_Write_Data(can_tx_msg);
 
         	return CR;
 
@@ -921,15 +936,22 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
 
         	for(int i = 0; i < CAN_TxHeader.DLC; i++)
         	{
-        		CAN_Tx_buffer[i] = HexToShort(cmd_buf[i*2+5], cmd_buf[i*2+6]);
+        		can_tx_msg.data_byte[i] = HexToShort(cmd_buf[i*2+5], cmd_buf[i*2+6]);
         	}
         	HAL_GPIO_WritePin(TX_LED_GPIO_Port, TX_LED_Pin, GPIO_PIN_SET);
-        	CAN_status = HAL_CAN_AddTxMessage(&hcan, &CAN_TxHeader, CAN_Tx_buffer, &CAN_mailbox);
+        	CAN_status = HAL_CAN_AddTxMessage(&hcan, &CAN_TxHeader, can_tx_msg.data_byte, &CAN_mailbox);
         	if(CAN_status != HAL_OK)
         	{
         		return ERROR;
         	}
-
+        	can_tx_msg.timestamp = HAL_GetTick();
+        	can_tx_msg.can_dir = DIR_TRANSMIT;
+        	can_tx_msg.header.DLC = CAN_TxHeader.DLC;
+        	can_tx_msg.header.ExtId = CAN_TxHeader.ExtId;
+        	can_tx_msg.header.StdId = CAN_TxHeader.StdId;
+        	can_tx_msg.header.RTR = CAN_TxHeader.RTR;
+        	can_tx_msg.header.IDE = CAN_TxHeader.IDE;
+        	CAN_Log_Buffer_Write_Data(can_tx_msg);
         	return CR;
 
 
@@ -949,12 +971,19 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         	CAN_TxHeader.RTR = CAN_RTR_REMOTE;
         	CAN_TxHeader.DLC = HexTo4bits(cmd_buf[9]);
         	HAL_GPIO_WritePin(TX_LED_GPIO_Port, TX_LED_Pin, GPIO_PIN_SET);
-        	CAN_status = HAL_CAN_AddTxMessage(&hcan, &CAN_TxHeader, CAN_Tx_buffer, &CAN_mailbox);
+        	CAN_status = HAL_CAN_AddTxMessage(&hcan, &CAN_TxHeader, can_tx_msg.data_byte, &CAN_mailbox);
         	if(CAN_status != HAL_OK)
         	{
         		return ERROR;
         	}
-
+        	can_tx_msg.timestamp = HAL_GetTick();
+        	can_tx_msg.can_dir = DIR_TRANSMIT;
+        	can_tx_msg.header.DLC = CAN_TxHeader.DLC;
+        	can_tx_msg.header.ExtId = CAN_TxHeader.ExtId;
+        	can_tx_msg.header.StdId = CAN_TxHeader.StdId;
+        	can_tx_msg.header.RTR = CAN_TxHeader.RTR;
+        	can_tx_msg.header.IDE = CAN_TxHeader.IDE;
+        	CAN_Log_Buffer_Write_Data(can_tx_msg);
         	return CR;
 
 
@@ -991,13 +1020,21 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
 
         	for(int i = 0; i < CAN_TxHeader.DLC; i++)
         	{
-        		CAN_Tx_buffer[i] = HexToShort(cmd_buf[i*2+10], cmd_buf[i*2+11]);
+        		can_tx_msg.data_byte[i] = HexToShort(cmd_buf[i*2+10], cmd_buf[i*2+11]);
         	}
         	HAL_GPIO_WritePin(TX_LED_GPIO_Port, TX_LED_Pin, GPIO_PIN_SET);
-        	CAN_status = HAL_CAN_AddTxMessage(&hcan, &CAN_TxHeader, CAN_Tx_buffer, &CAN_mailbox);
+        	CAN_status = HAL_CAN_AddTxMessage(&hcan, &CAN_TxHeader, can_tx_msg.data_byte, &CAN_mailbox);
         	if(CAN_status != HAL_OK)
         		return ERROR;
 
+        	can_tx_msg.timestamp = HAL_GetTick();
+        	can_tx_msg.can_dir = DIR_TRANSMIT;
+        	can_tx_msg.header.DLC = CAN_TxHeader.DLC;
+        	can_tx_msg.header.ExtId = CAN_TxHeader.ExtId;
+        	can_tx_msg.header.StdId = CAN_TxHeader.StdId;
+        	can_tx_msg.header.RTR = CAN_TxHeader.RTR;
+        	can_tx_msg.header.IDE = CAN_TxHeader.IDE;
+        	CAN_Log_Buffer_Write_Data(can_tx_msg);
         	return CR;
 
             // read Error Capture Register
@@ -1092,7 +1129,7 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
 
         case JUMP_MARKER:
         	if(conf.script_run)	conf.script_loop_address = conf.script_address;
-        	break;
+        	return CR;
 
         case DELAY_MS:
         	conf.script_delay = 0;
@@ -1108,32 +1145,59 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
 
         case STOP_SCRIPT:
         	conf.script_run = false;
-        	break;
+        	return CR;
 
         case START_SCRIPT:
         	conf.script_address = eeprom_settings.start_address_csript;
         	conf.script_run = true;
-        	break;
+        	return CR;
 
         case STOP_LOGGING:
-
-        	break;
+        	conf.loger_run = false;
+        	return CR;
 
         case START_LOGGING:
+        	if(cmd_len == 2)
+        	{
+        		if(cmd_buf[1] >= '0' && cmd_buf[1] <='3')
+        		{
+        			eeprom_settings.fileOutputType = cmd_buf[1] - '0';
+        			EEPROM_Write(&hspi2, EEPROM_SETINGS_ADDR + ((uint32_t)&eeprom_settings.fileOutputType - (uint32_t)&eeprom_settings), (uint8_t*)&eeprom_settings.fileOutputType, sizeof(eeprom_settings.fileOutputType));
+        		}
+        		else return ERROR;
+        	}
 
-        	break;
+        	if(conf.sd_card_avalible == false)
+        	{
+        		fresult = f_mount(&fs, "0:", 1);
+        		if(fresult == FR_OK) conf.sd_card_avalible = true;
+        		else
+        		{
+        			f_mount(0, "0:", 1);
+        			return ERROR;
+        		}
+        	}
+        	do
+        	{
+        		Generate_Next_FileName(filename);
+        		fresult = f_open(&fil, (TCHAR*)filename, FA_WRITE | FA_CREATE_NEW | FA_CREATE_ALWAYS);
+        	}
+        	while(fresult == FR_EXIST);
+        	if(fresult == FR_OK) conf.loger_run = true;
+        	else return ERROR;
+        	return CR;
 
         case HELP:
         	conf.help_print = true;
         	conf.help_text_pointer = 0;
-        	break;
+        	return CR;
 
         case RESET:
         	if(cmd_buf[1] == 'R' && cmd_buf[2] == 'S' && cmd_buf[3] == 'T')
         	{
         		NVIC_SystemReset();
         	}
-        	break;
+        	return CR;
 
             // end with error on unknown commands
         default:
@@ -1372,7 +1436,7 @@ void Check_Command(uint8_t in_byte)
             break;
         default:
             if (step < CAN_TxHeader.DLC + 6) {
-            	CAN_Tx_buffer[step - 6] = in_byte;
+            	can_tx_msg.data_byte[step - 6] = in_byte;
             } else {
                 state = IDLE;
                 //this would be the checksum byte. Compute and compare.
@@ -1403,7 +1467,18 @@ void Check_Command(uint8_t in_byte)
                 //}
                 HAL_GPIO_WritePin(TX_LED_GPIO_Port, TX_LED_Pin, GPIO_PIN_SET);
                 CAN_TxHeader.RTR = CAN_RTR_DATA;
-                HAL_CAN_AddTxMessage(&hcan, &CAN_TxHeader, CAN_Tx_buffer, &CAN_mailbox);
+                if(HAL_CAN_AddTxMessage(&hcan, &CAN_TxHeader, can_tx_msg.data_byte, &CAN_mailbox) == HAL_OK)
+                {
+                	can_tx_msg.timestamp = HAL_GetTick();
+                	can_tx_msg.can_dir = DIR_TRANSMIT;
+                	can_tx_msg.header.DLC = CAN_TxHeader.DLC;
+                	can_tx_msg.header.ExtId = CAN_TxHeader.ExtId;
+                	can_tx_msg.header.StdId = CAN_TxHeader.StdId;
+                	can_tx_msg.header.RTR = CAN_TxHeader.RTR;
+                	can_tx_msg.header.IDE = CAN_TxHeader.IDE;
+                	CAN_Log_Buffer_Write_Data(can_tx_msg);
+                }
+
             }
             break;
         }
@@ -1799,7 +1874,6 @@ void Next_CAN_channel (void)
 {
 	eeprom_settings.numBus++;
 	if(eeprom_settings.numBus >= 4) eeprom_settings.numBus = 0;
-	//Change_CAN_channel();
 
 	Open_CAN_cannel();
 }
