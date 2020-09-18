@@ -11,6 +11,7 @@
 #include <math.h>
 #include "eeprom.h"
 #include "main.h"
+#include "ff_gen_drv.h"
 
 
 // command buffer
@@ -37,6 +38,8 @@ extern FRESULT fresult;
 extern FATFS fs;
 extern FIL fil;
 extern uint8_t filename[];
+
+extern Disk_drvTypeDef  disk;
 
 uint32_t CAN_mailbox;
 HAL_StatusTypeDef CAN_status;
@@ -1174,6 +1177,7 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         		else
         		{
         			f_mount(0, "0:", 1);
+        			disk.is_initialized[0] = 0; // Reset flag of initialized
         			return ERROR;
         		}
         	}

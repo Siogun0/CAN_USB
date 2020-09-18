@@ -447,7 +447,7 @@ int main(void)
 						  }
 						  while(fresult == FR_EXIST);
 					}
-
+					if(fresult != FR_OK) conf.sd_card_avalible = false; //TODO flex. All errors disable card
 				}
 			}
 		}

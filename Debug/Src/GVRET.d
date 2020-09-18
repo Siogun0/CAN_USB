@@ -27,7 +27,10 @@ Src/GVRET.o: ../Src/GVRET.c ../Inc/GVRET.h ../Inc/main.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h ../Inc/GVRET.h \
  ../Middlewares/Third_Party/FatFs/src/ff.h \
  ../Middlewares/Third_Party/FatFs/src/integer.h ../Inc/ffconf.h \
- ../Inc/can.h ../Inc/eeprom.h ../Inc/main.h
+ ../Inc/can.h ../Inc/eeprom.h ../Inc/main.h \
+ ../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h \
+ ../Middlewares/Third_Party/FatFs/src/diskio.h \
+ ../Middlewares/Third_Party/FatFs/src/ff.h
 
 ../Inc/GVRET.h:
 
@@ -98,3 +101,9 @@ Src/GVRET.o: ../Src/GVRET.c ../Inc/GVRET.h ../Inc/main.h \
 ../Inc/eeprom.h:
 
 ../Inc/main.h:
+
+../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h:
+
+../Middlewares/Third_Party/FatFs/src/diskio.h:
+
+../Middlewares/Third_Party/FatFs/src/ff.h:
