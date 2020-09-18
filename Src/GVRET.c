@@ -1,7 +1,7 @@
 /*
  * GVRET.c
  *
- *  Created on: 5 мар. 2020 г.
+ *  Created on: 5 пїЅпїЅпїЅ. 2020 пїЅ.
  *      Author: Arh
  */
 #include "GVRET.h"
@@ -9,6 +9,7 @@
 #include <string.h>
 #include <math.h>
 #include "eeprom.h"
+#include "main.h"
 
 
 // command buffer
@@ -29,6 +30,11 @@ extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart3;
 extern UART_HandleTypeDef *huart_active;
 extern UART_HandleTypeDef *huart_lin;
+extern uint8_t flash_buffer[128];
+
+extern FRESULT fresult;
+extern FATFS fs;
+extern FIL fil;
 
 uint32_t CAN_mailbox;
 HAL_StatusTypeDef CAN_status;
@@ -44,13 +50,18 @@ struct
 	uint16_t Pointer_Read;
 	uint16_t Pointer_Write;
 	can_msg_t Item[CAN_BUFFER_SIZE];
-} CAN_Buffer;
+} CAN_Buffer, CAN_Log_Buffer;
 
 void CAN_Buffer_Init(void)
 {
 	CAN_Buffer.Pointer_Read = 0;
 	CAN_Buffer.Pointer_Write = 0;
+
+	CAN_Log_Buffer.Pointer_Read = 0;
+	CAN_Log_Buffer.Pointer_Write = 0;
 }
+
+
 
 HAL_StatusTypeDef CAN_Buffer_pull(void)
 {
@@ -71,6 +82,71 @@ HAL_StatusTypeDef CAN_Buffer_pull(void)
 	{
 		return HAL_BUSY;
 	}
+}
+
+HAL_StatusTypeDef CAN_Log_Buffer_pull(void)
+{
+	if(CAN_Log_Buffer.Pointer_Read != CAN_Log_Buffer.Pointer_Write)
+	{
+		uint16_t length = BuildFrameToFile(CAN_Log_Buffer.Item[CAN_Log_Buffer.Pointer_Read], 0, flash_buffer);
+		if(Save_to_File(flash_buffer, length) == HAL_OK)
+		{
+			CAN_Log_Buffer.Pointer_Read = (CAN_Log_Buffer.Pointer_Read < (CAN_BUFFER_SIZE-1)) ? (CAN_Log_Buffer.Pointer_Read + 1) : 0;
+			return HAL_OK;
+		}
+		else
+		{
+			return HAL_ERROR;
+		}
+	}
+	else
+	{
+		return HAL_BUSY;
+	}
+}
+
+void Generate_Next_FileName(uint8_t * name)
+{
+	static uint32_t num_file = 0;
+	uint32_t pie;
+	uint8_t piece;
+	uint32_t pow10 = 10000000;
+	num_file++;
+	if(num_file > 99999999) num_file = 0;
+	pie = num_file;
+	for(int i = 0; i < 7; i++)
+	{
+		piece = pie / pow10;
+		pie -= piece * pow10;
+		name[i] = piece + '0';
+		pow10 /= 10;
+	}
+	name[7] = pie +'0';
+	if(eeprom_settings.fileOutputType == BINARYFILE)
+	{
+		name[9] = 'L';
+		name[10] = 'O';
+		name[11] = 'G';
+	}
+	else if(eeprom_settings.fileOutputType == GVRET_FILE)
+	{
+		name[9] = 'C';
+		name[10] = 'S';
+		name[11] = 'V';
+	}
+	else if(eeprom_settings.fileOutputType == CRTD_FILE)
+	{
+		name[9] = 'C';
+		name[10] = 'R';
+		name[11] = 'T';
+	}
+	else
+	{
+		name[9] = 'T';
+		name[10] = 'X';
+		name[11] = 'T';
+	}
+	name[12] = 0;
 }
 
 void CAN_Buffer_clean(void)
@@ -97,6 +173,34 @@ HAL_StatusTypeDef CAN_Buffer_Write_Data(can_msg_t msg)
 	{
 		CAN_Buffer.Item[CAN_Buffer.Pointer_Write] = msg;
 		CAN_Buffer.Pointer_Write = (CAN_Buffer.Pointer_Write < (CAN_BUFFER_SIZE-1)) ? (CAN_Buffer.Pointer_Write + 1) : 0;
+		res = HAL_OK;
+	}
+	else
+	{
+		res = HAL_BUSY;
+	}
+	return res;
+}
+
+HAL_StatusTypeDef CAN_Log_Buffer_Write_Data(can_msg_t msg)
+{
+	uint16_t capacity;
+	HAL_StatusTypeDef res;
+
+
+    if(CAN_Log_Buffer.Pointer_Write >= CAN_Log_Buffer.Pointer_Read)
+    {
+        capacity = CAN_BUFFER_SIZE - (CAN_Log_Buffer.Pointer_Write - CAN_Log_Buffer.Pointer_Read);
+    }
+    else
+    {
+        capacity = CAN_Log_Buffer.Pointer_Read - CAN_Log_Buffer.Pointer_Write;
+    }
+
+	if(capacity > 1)
+	{
+		CAN_Log_Buffer.Item[CAN_Log_Buffer.Pointer_Write] = msg;
+		CAN_Log_Buffer.Pointer_Write = (CAN_Log_Buffer.Pointer_Write < (CAN_BUFFER_SIZE-1)) ? (CAN_Log_Buffer.Pointer_Write + 1) : 0;
 		res = HAL_OK;
 	}
 	else
@@ -367,6 +471,86 @@ uint16_t BuildFrameToUSB (can_msg_t frame, int whichBus, uint8_t * buf)
             }
             SerialUSB.println();*/
         }
+    }
+    return pointer;
+}
+
+
+uint16_t BuildFrameToFile(can_msg_t frame, int whichBus, uint8_t * buff)
+{
+   // uint8_t buff[40];
+    uint8_t temp;
+    uint32_t id_temp;
+    uint32_t pointer = 0;
+    if (eeprom_settings.fileOutputType == BINARYFILE) {
+    	if (frame.header.IDE == CAN_ID_EXT) id_temp = frame.header.ExtId | 1 << 31;
+    	else id_temp = frame.header.StdId;
+        buff[pointer++] = (uint8_t)(frame.timestamp & 0xFF);
+        buff[pointer++] = (uint8_t)(frame.timestamp >> 8);
+        buff[pointer++] = (uint8_t)(frame.timestamp >> 16);
+        buff[pointer++] = (uint8_t)(frame.timestamp >> 24);
+        buff[pointer++] = (uint8_t)(id_temp & 0xFF);
+        buff[pointer++] = (uint8_t)(id_temp >> 8);
+        buff[pointer++] = (uint8_t)(id_temp >> 16);
+        buff[pointer++] = (uint8_t)(id_temp >> 24);
+        buff[pointer++] = frame.header.DLC + (uint8_t)(whichBus << 4);
+        for (int c = 0; c < frame.header.DLC; c++) {
+            buff[pointer++] = frame.data_byte[c];
+        }
+        //Logger::fileRaw(buff, 9 + frame.length);
+    } else if (eeprom_settings.fileOutputType == GVRET_FILE) {
+    	if (frame.header.IDE == CAN_ID_EXT) id_temp = frame.header.ExtId;
+    	else id_temp = frame.header.StdId;
+        sprintf((char *)buff, "%i,%x,%i,%i,%i", (int)frame.timestamp, id_temp, frame.header.IDE, whichBus, frame.header.DLC);
+        //Logger::fileRaw(buff, strlen((char *)buff));
+        pointer = strlen((char *)buff);
+
+        if(frame.header.RTR == CAN_RTR_DATA)
+    	{
+    		for(int i = 0; i < frame.header.DLC; i++)
+    		{
+    			buff[pointer++] = ',';
+    			ShortToHex(frame.data_byte[i], &buff[pointer]);
+    			pointer +=2;
+    		}
+    	}
+
+//        for (int c = 0; c < frame.header.DLC; c++) {
+//            sprintf((char *) buff, ",%x", frame.data_byte[c]);
+//            //Logger::fileRaw(buff, strlen((char *)buff));
+//            //TODO
+//        }
+        buff[pointer++] = '\r';
+        buff[pointer++] = '\n';
+        //Logger::fileRaw(buff, 2);
+
+    } else if (eeprom_settings.fileOutputType == CRTD_FILE) {
+        int idBits = 11;
+        if (frame.header.IDE) idBits = 29;
+        if (frame.header.IDE == CAN_ID_EXT) id_temp = frame.header.ExtId;
+        else id_temp = frame.header.StdId;
+        sprintf((char *)buff, "%i.%u %c%i %x", frame.timestamp / 1000, frame.timestamp % 1000, (frame.can_dir == DIR_TRANSMIT)?'T':'R', idBits, id_temp);
+
+        pointer = strlen((char *)buff);
+
+        if(frame.header.RTR == CAN_RTR_DATA)
+    	{
+    		for(int i = 0; i < frame.header.DLC; i++)
+    		{
+    			buff[pointer++] = ' ';
+    			ShortToHex(frame.data_byte[i], &buff[pointer]);
+    			pointer +=2;
+    		}
+    	}
+        //Logger::fileRaw(buff, strlen((char *)buff));
+
+//        for (int c = 0; c < frame.header.DLC; c++) {
+//            sprintf((char *) buff, " %x", frame.data_byte[c]);
+//            //Logger::fileRaw(buff, strlen((char *)buff));
+//        }
+        buff[pointer++] = '\r';
+        buff[pointer++] = '\n';
+        //Logger::fileRaw(buff, 2);
     }
     return pointer;
 }

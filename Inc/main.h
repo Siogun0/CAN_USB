@@ -33,6 +33,7 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "GVRET.h"
+#include "ff.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -49,6 +50,8 @@ extern uint8_t uart_rx_bufer[1024];
 extern uint32_t uart_rx_pointer_w;
 extern uint32_t uart_rx_pointer_r;
 extern uint8_t uart_rx_char;
+
+
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -61,12 +64,15 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 void Check_Command(uint8_t uart_rx_char);
+HAL_StatusTypeDef Save_to_File(uint8_t * buf, uint32_t len);
 
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
 #define LED_Pin GPIO_PIN_13
 #define LED_GPIO_Port GPIOC
+#define SPI1_CS_Pin GPIO_PIN_4
+#define SPI1_CS_GPIO_Port GPIOA
 #define MODE_SEL_Pin GPIO_PIN_0
 #define MODE_SEL_GPIO_Port GPIOB
 #define BUTTON_Pin GPIO_PIN_1

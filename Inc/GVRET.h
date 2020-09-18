@@ -181,6 +181,13 @@ typedef struct {
     uint32_t CAN_mode[4];
 } SystemSettings;
 
+typedef enum {
+    NONE = 0,
+    BINARYFILE = 1,
+    GVRET_FILE = 2,
+    CRTD_FILE = 3
+} FILEOUTPUTTYPE;
+
 volatile typedef struct {
 	uint16_t version;
 	uint16_t eeprom_size;
@@ -196,7 +203,7 @@ volatile typedef struct {
 
     uint32_t UART_Speed;
     uint32_t reserv4;
-
+    FILEOUTPUTTYPE fileOutputType; //what format should we use for file output?
 } t_eeprom_settings;
 
 typedef struct {  //should be 10 bytes
@@ -206,12 +213,7 @@ typedef struct {  //should be 10 bytes
     boolean enabled;
 } FILTER;
 
-typedef enum {
-    NONE = 0,
-    BINARYFILE = 1,
-    GVRET = 2,
-    CRTD = 3
-} FILEOUTPUTTYPE;
+
 
 typedef struct { //Must stay under 256 - currently somewhere around 222
     uint8_t version;
@@ -244,6 +246,12 @@ typedef struct { //Must stay under 256 - currently somewhere around 222
     boolean SWCANListenOnly;
 } EEPROMSettings;
 
+typedef enum
+{
+	DIR_RECEIVE,
+	DIR_TRANSMIT
+} can_dir_t;
+
 typedef struct
 {
 //	enum {STANDARD, EXTENDED} format;
@@ -258,6 +266,7 @@ typedef struct
 		uint32_t data_word[2];
 		uint64_t data_full;
 	};
+	can_dir_t can_dir;
 } can_msg_t;
 
 
@@ -297,7 +306,9 @@ uint8_t HexTo4bits (uint8_t H);
 void ShortToHex (uint8_t in, uint8_t * out);
 uint16_t BuildFrameToUSB (can_msg_t frame, int whichBus, uint8_t * buf);
 HAL_StatusTypeDef CAN_Buffer_pull(void);
+HAL_StatusTypeDef CAN_Log_Buffer_pull(void);
 HAL_StatusTypeDef CAN_Buffer_Write_Data(can_msg_t msg);
+HAL_StatusTypeDef CAN_Log_Buffer_Write_Data(can_msg_t msg);
 void CAN_Buffer_Init(void);
 void CAN_Buffer_clean(void);
 HAL_StatusTypeDef Open_CAN_cannel(void);
@@ -309,6 +320,8 @@ HAL_StatusTypeDef Open_LIN_cannel(void);
 void STM_bxCAN_calc(uint32_t freq, float bitrate, CAN_HandleTypeDef * hcan);
 uint8_t exec_usb_cmd (uint8_t * cmd_buf);
 HAL_StatusTypeDef SetFilterCAN(uint32_t id, uint32_t mask_or_id, uint32_t mode, uint32_t num);
+void Generate_Next_FileName(uint8_t * name);
+uint16_t BuildFrameToFile(can_msg_t frame, int whichBus, uint8_t * buff);
 #endif /* GVRET_H_ */
 
 

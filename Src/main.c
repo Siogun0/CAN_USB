@@ -17,11 +17,11 @@
   ******************************************************************************
   */
 /* USER CODE END Header */
-
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "can.h"
 #include "dma.h"
+#include "fatfs.h"
 #include "rtc.h"
 #include "spi.h"
 #include "usart.h"
@@ -58,6 +58,7 @@ UART_HandleTypeDef *huart_lin;
 uint64_t time_stamp_UART = 0;
 uint64_t time_stamp_LED = 0;
 uint64_t time_stamp_BUT = 0;
+uint64_t time_stamp_SAVE = 0;
 can_msg_t can_msg;
 uint8_t uart_tx_bufer[128];
 uint8_t uart_tx_bufer_1[128];
@@ -69,7 +70,8 @@ uint8_t uart_rx_bufer[1024];
 uint32_t uart_rx_pointer_w = 0;
 uint32_t uart_rx_pointer_r = 0;
 uint8_t uart_rx_char;
-
+uint8_t flash_buffer[128];
+uint8_t filename[] = "abcdefgh.log";
 
 uint8_t debug_buf[1024];
 uint32_t debug_pt = 0;
@@ -77,7 +79,7 @@ uint32_t debug_pt = 0;
 
 conf_t conf;
 
-can_msg_t can_rx_buf[32];
+can_msg_t can_rx_buf[2];
 volatile uint8_t uart_busy = 0;
 
 uint8_t test_str[] = "Hello World \r\n";
@@ -96,6 +98,10 @@ uint8_t script_buf[CMD_BUFFER_LENGTH];
 uint8_t script_buf_pointer = 0;
 
 extern const char help_text[];
+
+FRESULT fresult = FR_OK;
+FATFS fs;
+FIL fil;
 
 /* USER CODE END PV */
 
@@ -190,9 +196,10 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 
 void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
-	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO1, &can_rx_buf[0].header, can_rx_buf[1].data_byte);
+	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO1, &can_rx_buf[1].header, can_rx_buf[1].data_byte);
 	can_rx_buf[1].timestamp = HAL_GetTick();
 	CAN_Buffer_Write_Data(can_rx_buf[1]);
+	CAN_Log_Buffer_Write_Data(can_rx_buf[1]);
 	HAL_GPIO_WritePin(RX_LED_GPIO_Port, RX_LED_Pin, GPIO_PIN_SET);
 }
 
@@ -201,9 +208,17 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &can_rx_buf[0].header, can_rx_buf[0].data_byte);
 	can_rx_buf[0].timestamp = HAL_GetTick();
 	CAN_Buffer_Write_Data(can_rx_buf[0]);
+	CAN_Log_Buffer_Write_Data(can_rx_buf[0]);
 	HAL_GPIO_WritePin(RX_LED_GPIO_Port, RX_LED_Pin, GPIO_PIN_SET);
 }
 
+HAL_StatusTypeDef Save_to_File(uint8_t * buf, uint32_t len)
+{
+	unsigned int bw;
+	fresult = f_write(&fil, buf, len, &bw);
+	if(fresult == FR_OK && bw == len) return HAL_OK;
+	else return HAL_ERROR;
+}
 
 
 /* USER CODE END 0 */
@@ -244,6 +259,8 @@ int main(void)
   MX_USART1_UART_Init();
   MX_CAN_Init();
   MX_SPI2_Init();
+  MX_FATFS_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
   HAL_Delay(100);
 
@@ -289,6 +306,23 @@ int main(void)
   conf.scpipt_saving = false;
   conf.script_address = eeprom_settings.start_address_csript;
   conf.script_loop_address = 0xFFFF;
+
+  eeprom_settings.fileOutputType = CRTD_FILE;
+
+
+  fresult = f_mount(&fs, "0:", 1);
+
+
+  unsigned int nob;
+  do
+  {
+	  //uint8_t filename[] = "abcdefgh.log";
+	  Generate_Next_FileName(filename);
+	  fresult = f_open(&fil, filename, FA_WRITE | FA_CREATE_NEW | FA_CREATE_ALWAYS);
+  }
+  while(fresult == FR_EXIST);
+
+
 
   SetFilterCAN(0,0,CAN_FILTERMODE_IDMASK,0);
   Change_CAN_channel();
@@ -381,6 +415,17 @@ int main(void)
 		{
 			time_stamp_UART = HAL_GetTick();
 			UART_Check_Data_Ready();
+
+//			unsigned int nob;
+//			static uint8_t c = '0';
+//			uint8_t text[20] = "Hello  \r\n";
+//			text[6] = c;
+//			c=c<'9'?c+1:'0';
+//			if(time_stamp_LED < 50000)
+//				fresult = f_write(&fil, text, sizeof(text), &nob);
+//			else{
+//				f_close(&fil);
+//				HAL_GPIO_WritePin(ERROR_LED_GPIO_Port, ERROR_LED_Pin, GPIO_PIN_SET);}
 		}
 
 		// LED blinking
@@ -388,7 +433,28 @@ int main(void)
 		{
 			time_stamp_LED = HAL_GetTick();
 			HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+
+
 		}
+
+		//Save file, open NEW
+		CAN_Log_Buffer_pull();
+		if(HAL_GetTick() - time_stamp_SAVE >= 60000)
+		{
+			time_stamp_SAVE = HAL_GetTick();
+			if(f_size(&fil) != 0)
+			{
+				fresult = f_close(&fil);
+				  do
+				  {
+					  //uint8_t filename[] = "abcdefgh.log";
+					  Generate_Next_FileName(filename);
+					  fresult = f_open(&fil, (const TCHAR*)filename, FA_WRITE | FA_CREATE_NEW | FA_CREATE_ALWAYS);
+				  }
+				  while(fresult == FR_EXIST);
+			}
+		}
+
 
 
 		if(Button_rutine(&button_var, HAL_GPIO_ReadPin(BUTTON_GPIO_Port, BUTTON_Pin) == 1) == DOUBLE_CLICKED)
@@ -457,7 +523,8 @@ void SystemClock_Config(void)
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
-  /** Initializes the CPU, AHB and APB busses clocks 
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE|RCC_OSCILLATORTYPE_LSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
@@ -471,7 +538,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  /** Initializes the CPU, AHB and APB busses clocks 
+  /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
@@ -544,7 +611,7 @@ void Error_Handler(void)
   * @retval None
   */
 void assert_failed(uint8_t *file, uint32_t line)
-{ 
+{
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
      tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
