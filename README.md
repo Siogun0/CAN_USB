@@ -28,3 +28,4 @@ CAN и LIN адаптер.
   
 Команда '?\r' выводит подсказку по всем доступным командам.
 
+# [Инструкция](https://github.com/Siogun0/CAN_USB/blob/master/USER_MANUAL.md)
