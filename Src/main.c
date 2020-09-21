@@ -102,6 +102,7 @@ extern const char help_text[];
 FRESULT fresult = FR_OK;
 FATFS fs;
 FIL fil;
+extern Disk_drvTypeDef  disk;
 
 /* USER CODE END PV */
 
@@ -301,6 +302,45 @@ int main(void)
 	  huart3.Init.BaudRate = (eeprom_settings.UART_Speed > 0 && eeprom_settings.UART_Speed < 10000000) ? eeprom_settings.UART_Speed : 115200;
   }
   HAL_UART_Init(&huart3);
+
+// SD FLASH try connect
+  if(eeprom_settings.SD_autoconnect == 1)
+  {
+		fresult = f_mount(&fs, "0:", 1);
+		if(fresult == FR_OK)
+		{
+			conf.sd_card_avalible = true;
+			fresult = f_open(&fil, "script.txt", FA_READ);
+			if(fresult == FR_OK)
+			{
+				uint32_t br = 0;
+				do
+				{
+					//fresult = f_read(&fil, debug_buf, sizeof(debug_buf), &br);
+					if(f_gets((char*)debug_buf, sizeof(debug_buf), &fil) != 0)
+					{
+						uint8_t str_len = strlen((char*)debug_buf);
+						if(debug_buf[str_len-1] == '\n') debug_buf[str_len-1] = '\r';
+						else if(debug_buf[str_len-1] != '\r') debug_buf[str_len++] = '\r';
+						if(debug_buf[str_len-2] == '\r') str_len--;
+						copy_script(debug_buf, str_len);
+					}
+					else
+					{
+						debug_buf[0] = 0xFF;
+						copy_script(debug_buf, 1);
+						break;
+					}
+				}
+				while(1);
+			}
+		}
+		else
+		{
+			f_mount(0, "0:", 1);
+			disk.is_initialized[0] = 0; // Reset flag of initialized
+		}
+  }
 
 
   conf.script_run = true;

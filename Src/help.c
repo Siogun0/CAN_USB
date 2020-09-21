@@ -38,4 +38,5 @@ H - start(format) logging. If H1 - Binary, H2 - GVRET, H3 - CRTD \r \
 h - stop logging \r \
 === Misc === \r\
 ? - list of supported commands \r \
-!RST - reset \0";
+!RST - reset\r \
+!SD1 / !SD0 - startup SD connect \0";

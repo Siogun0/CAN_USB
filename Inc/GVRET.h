@@ -30,6 +30,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "main.h"
 
 
+
 #define CFG_BUILD_NUM	343
 #define CFG_VERSION "GVRET alpha 2017-11-09"
 #define EEPROM_PAGE		275 //this is within an eeprom space currently unused on GEVCU so it's safe
@@ -111,7 +112,7 @@ typedef enum
 #define START_LOGGING		'H' // start logging. If H1 - Binary, H2 - GVRET, H3 - CRTD
 #define STOP_LOGGING		'h' // stop logging
 #define HELP				'?' // list of supported commands
-#define RESET				'!' // !RST - reset
+#define RESET				'!' // !RST - reset, !SD1 / !SD0 - startup SD connect
 
 #define TIME_STAMP_TICK 1000	// microseconds
 #define CMD_BUFFER_LENGTH  30
@@ -206,6 +207,7 @@ volatile typedef struct {
     uint32_t UART_Speed;
     uint32_t reserv4;
     FILEOUTPUTTYPE fileOutputType; //what format should we use for file output?
+    uint8_t SD_autoconnect;
 } t_eeprom_settings;
 
 typedef struct {  //should be 10 bytes
@@ -322,6 +324,7 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf);
 HAL_StatusTypeDef SetFilterCAN(uint32_t id, uint32_t mask_or_id, uint32_t mode, uint32_t num);
 void Generate_Next_FileName(uint8_t * name);
 uint16_t BuildFrameToFile(can_msg_t frame, int whichBus, uint8_t * buff);
+HAL_StatusTypeDef copy_script(uint8_t * buf, uint32_t size);
 #endif /* GVRET_H_ */
 
 

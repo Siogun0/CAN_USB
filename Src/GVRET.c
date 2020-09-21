@@ -632,6 +632,53 @@ HAL_StatusTypeDef SetFilterCAN(uint32_t id, uint32_t mask_or_id, uint32_t mode, 
 	 return HAL_OK;
 }
 
+HAL_StatusTypeDef save_script(uint8_t * cmd_buf, uint8_t cmd_len)
+{
+	if(conf.script_address < eeprom_settings.start_address_csript || conf.script_address > eeprom_settings.eeprom_size-2)
+	{
+		conf.script_address = eeprom_settings.start_address_csript;
+	}
+	if(conf.script_address + cmd_len < eeprom_settings.eeprom_size-2)
+	{
+    	cmd_buf[cmd_len] = CR;
+    	if(EEPROM_Write(&hspi2, conf.script_address, cmd_buf, cmd_len+1) == HAL_OK)
+    	{
+    		conf.script_address += cmd_len+1;
+    		return HAL_OK;
+    	}
+    	else
+    		return HAL_ERROR;
+	}
+	else
+		return HAL_ERROR;
+
+}
+
+HAL_StatusTypeDef copy_script(uint8_t * buf, uint32_t size)
+{
+	uint8_t temp;
+	static uint32_t shift = 0;
+	if(size > eeprom_settings.eeprom_size + shift - eeprom_settings.start_address_csript - 2)
+		return ERROR;
+
+	for(uint32_t i = 0; i < size; i++)
+	{
+		EEPROM_Read(&hspi2, eeprom_settings.start_address_csript + i, &temp, 1);
+		if(temp != buf[i])
+		{
+			if(EEPROM_Write(&hspi2, eeprom_settings.start_address_csript + shift, buf, size) == HAL_OK)
+			{
+				shift += size;
+				return HAL_OK;
+			}
+			else
+				return HAL_ERROR;
+		}
+	}
+	return HAL_BUSY;
+}
+
+
 uint8_t exec_usb_cmd (uint8_t * cmd_buf)
 {
 	uint32_t filter_temp;
@@ -639,18 +686,7 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
 
     if(conf.scpipt_saving == true && cmd_buf[0] != PROGRAM_SCRIPT)
     {
-    	if(conf.script_address < eeprom_settings.start_address_csript || conf.script_address > eeprom_settings.eeprom_size-2)
-    	{
-    		conf.script_address = eeprom_settings.start_address_csript;
-    	}
-    	if(conf.script_address + cmd_len >= eeprom_settings.eeprom_size-2) ;//return ERROR;
-    	cmd_buf[cmd_len++] = CR;
-    	if(EEPROM_Write(&hspi2, conf.script_address, cmd_buf, cmd_len) == HAL_OK)
-    	{
-    		conf.script_address += cmd_len;
-    		//return CR;
-    	}
-    	//else return ERROR;
+    	save_script(cmd_buf, cmd_len);
     }
 
     switch (cmd_buf[0]) {
@@ -1233,6 +1269,12 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         	if(cmd_buf[1] == 'R' && cmd_buf[2] == 'S' && cmd_buf[3] == 'T')
         	{
         		NVIC_SystemReset();
+        	}
+        	if(cmd_buf[1] == 'S' && cmd_buf[2] == 'D')
+        	{
+        		if(cmd_buf[3] == '1') eeprom_settings.SD_autoconnect = 1;
+        		if(cmd_buf[3] == '0') eeprom_settings.SD_autoconnect = 0;
+        		EEPROM_Write(&hspi2, EEPROM_SETINGS_ADDR + ((uint32_t)&eeprom_settings.SD_autoconnect - (uint32_t)&eeprom_settings), (uint8_t*)&eeprom_settings.SD_autoconnect, sizeof(eeprom_settings.SD_autoconnect));
         	}
         	return CR;
 
