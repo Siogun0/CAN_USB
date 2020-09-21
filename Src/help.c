@@ -16,8 +16,9 @@ T - send CAN message with 29bit ID \r \
 r - send CAN remote message with 11bit ID \r \
 R - send CAN remote message with 29bit ID \r \
 F - read status flag byte \r \
-M - set Acceptance Code Register \r \
-m - set Acceptance Mask Register \r \
+M - set Acceptance ID Register. Stand./Ext. + Data/Rem. + ID 'MSD3B9'\r \
+m - set Acceptance Mask/ID2 Register. 'm01FFF' \r \
+f - set filter number (0-13) and type (M - mask, I - ID) 'f1I'\r \
 V - get hardware and software version \r \
 v - get software version only \r \
 N - get device serial number \r \
@@ -26,15 +27,15 @@ L - open CAN in listen only mode \r \
 u - set custom USART bitrate 'u115200' \r \
 U - set USART bitrate 'U1' - 115200\r \
 B - select channel CAN/LIN 'B1' - CAN1\r \
-=== Script === \
+=== Script === \r\
 P - Programm script: start = 'P1', stop = 'P0', print = 'P2' \r \
 J - marker for jump script after end \r \
 D - delay before next script command 'D1000' - 1sec\r \
 x - stop script \r \
 X - start script \r \
-=== Logging === \
+=== Logging === \r\
 H - start(format) logging. If H1 - Binary, H2 - GVRET, H3 - CRTD \r \
 h - stop logging \r \
-=== Misc === \
+=== Misc === \r\
 ? - list of supported commands \r \
 !RST - reset \0";

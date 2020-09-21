@@ -88,8 +88,8 @@ typedef enum
 #define SEND_R11BIT_ID  	'r'	// send CAN remote message with 11bit ID
 #define SEND_R29BIT_ID  	'R'	// send CAN remote message with 29bit ID
 #define READ_STATUS     	'F'	// read status flag byte
-#define SET_FILTER_ID      	'M'	// set Acceptance Code Register
-#define SET_FILTER_MASK    	'm'	// set Acceptance Mask Register
+#define SET_FILTER_ID      	'M'	// set Acceptance Code Register Stand./Ext. + Data/Rem. 'MSD3B9'
+#define SET_FILTER_MASK    	'm'	// set Acceptance Mask Register. 'm01FFF'
 #define SET_FILTER			'f' // set filter number (0-13) and type (M - mask, I - ID) 'f1I'
 #define GET_VERSION     	'V'	// get hardware and software version
 #define GET_SW_VERSION 	 	'v' // get software version only

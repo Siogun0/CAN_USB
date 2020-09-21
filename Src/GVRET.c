@@ -634,6 +634,7 @@ HAL_StatusTypeDef SetFilterCAN(uint32_t id, uint32_t mask_or_id, uint32_t mode, 
 
 uint8_t exec_usb_cmd (uint8_t * cmd_buf)
 {
+	uint32_t filter_temp;
     uint8_t cmd_len = strlen ((char *)cmd_buf);	// get command length
 
     if(conf.scpipt_saving == true && cmd_buf[0] != PROGRAM_SCRIPT)
@@ -709,26 +710,58 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
 
 
         case SET_FILTER_ID:
-        	if(cmd_len != 9) return ERROR;
-            conf.filter_id = HexTo4bits(cmd_buf[1]) << 28 |
-            				 HexTo4bits(cmd_buf[2]) << 24 |
-							 HexTo4bits(cmd_buf[3]) << 20 |
-							 HexTo4bits(cmd_buf[4]) << 16 |
-							 HexTo4bits(cmd_buf[5]) << 12 |
-							 HexTo4bits(cmd_buf[6]) << 8 |
-							 HexTo4bits(cmd_buf[7]) << 4 |
-							 HexTo4bits(cmd_buf[8]) << 0 ;
-        	return CR;
         case SET_FILTER_MASK:
-        	if(cmd_len != 9) return ERROR;
-            conf.filter_mask = HexTo4bits(cmd_buf[1]) << 28 |
-            				 HexTo4bits(cmd_buf[2]) << 24 |
-							 HexTo4bits(cmd_buf[3]) << 20 |
-							 HexTo4bits(cmd_buf[4]) << 16 |
-							 HexTo4bits(cmd_buf[5]) << 12 |
-							 HexTo4bits(cmd_buf[6]) << 8 |
-							 HexTo4bits(cmd_buf[7]) << 4 |
-							 HexTo4bits(cmd_buf[8]) << 0 ;
+        	filter_temp = 0;
+
+        	if(cmd_buf[1] == 'E' || cmd_buf[1] == '1')
+        	{
+        		filter_temp |= 1<<2;
+            	for(int i = 3; i < cmd_len; i++)
+            	{
+            		if(cmd_buf[i] < '0' || (cmd_buf[i] > '9' && (cmd_buf[i] <'A' || cmd_buf[i] > 'F'))) return ERROR;
+            		filter_temp = filter_temp << 4;
+            		filter_temp += HexTo4bits(cmd_buf[i]);
+            	}
+            	filter_temp = (filter_temp & 0b11111111111111111) << 3;
+        	}
+        	else if(cmd_buf[1] == 'S' || cmd_buf[1] == '0')
+        	{
+            	for(int i = 3; i < cmd_len; i++)
+            	{
+            		if(cmd_buf[i] < '0' || (cmd_buf[i] > '9' && (cmd_buf[i] <'A' || cmd_buf[i] > 'F'))) return ERROR;
+            		filter_temp = filter_temp << 4;
+            		filter_temp += HexTo4bits(cmd_buf[i]);
+            	}
+            	filter_temp = (filter_temp & 0b1111111111) << 21;
+        	}
+        	else return ERROR;
+
+        	if(cmd_buf[2] == 'R' || cmd_buf[2] == '1') filter_temp |= 1<<1;
+        	else if(cmd_buf[2] != 'D' && cmd_buf[2] != '0') return ERROR;
+
+        	if(cmd_buf[0] == SET_FILTER_ID) conf.filter_id = filter_temp;
+        	else conf.filter_mask = filter_temp;
+
+//        	if(cmd_len != 9) return ERROR;
+//            conf.filter_id = HexTo4bits(cmd_buf[1]) << 28 |
+//            				 HexTo4bits(cmd_buf[2]) << 24 |
+//							 HexTo4bits(cmd_buf[3]) << 20 |
+//							 HexTo4bits(cmd_buf[4]) << 16 |
+//							 HexTo4bits(cmd_buf[5]) << 12 |
+//							 HexTo4bits(cmd_buf[6]) << 8 |
+//							 HexTo4bits(cmd_buf[7]) << 4 |
+//							 HexTo4bits(cmd_buf[8]) << 0 ;
+//        	return CR;
+//
+//        	if(cmd_len != 9) return ERROR;
+//            conf.filter_mask = HexTo4bits(cmd_buf[1]) << 28 |
+//            				 HexTo4bits(cmd_buf[2]) << 24 |
+//							 HexTo4bits(cmd_buf[3]) << 20 |
+//							 HexTo4bits(cmd_buf[4]) << 16 |
+//							 HexTo4bits(cmd_buf[5]) << 12 |
+//							 HexTo4bits(cmd_buf[6]) << 8 |
+//							 HexTo4bits(cmd_buf[7]) << 4 |
+//							 HexTo4bits(cmd_buf[8]) << 0 ;
             return CR;
         case SET_FILTER:
         	if(cmd_len == 3)
@@ -747,9 +780,9 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         	}
         	if(conf.filter_num > 14 || conf.filter_mode == 0xFF) return ERROR;
 
-        	Close_CAN_cannel();
-        	SetFilterCAN(conf.filter_id, conf.filter_mask, conf.filter_mode, conf.filter_num);
-        	Open_CAN_cannel();
+        	//Close_CAN_cannel();
+        	if(SetFilterCAN(conf.filter_id, conf.filter_mask, conf.filter_mode, conf.filter_num) != HAL_OK) return ERROR;
+        	//Open_CAN_cannel();
         	return CR;
 
             // set bitrate via BTR
