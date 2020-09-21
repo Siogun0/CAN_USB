@@ -316,14 +316,28 @@ int main(void)
 				uint32_t br = 0;
 				do
 				{
-					//fresult = f_read(&fil, debug_buf, sizeof(debug_buf), &br);
 					if(f_gets((char*)debug_buf, sizeof(debug_buf), &fil) != 0)
 					{
 						uint8_t str_len = strlen((char*)debug_buf);
+
+						// cut of comments
+						for(int i = 0; i < str_len; i++)
+						{
+							if(debug_buf[i] == ' ' || debug_buf[i] == '#' || debug_buf[i] == '\r')
+							{
+								//if(i == 0) continue;
+								debug_buf[i] = '\r';
+								str_len = i + 1;
+								break;
+							}
+						}
+						// correct "end of command"
 						if(debug_buf[str_len-1] == '\n') debug_buf[str_len-1] = '\r';
 						else if(debug_buf[str_len-1] != '\r') debug_buf[str_len++] = '\r';
-						if(debug_buf[str_len-2] == '\r') str_len--;
-						copy_script(debug_buf, str_len);
+						//if(debug_buf[str_len-2] == '\r') str_len--;
+
+						if(str_len > 1)
+							copy_script(debug_buf, str_len);
 					}
 					else
 					{
