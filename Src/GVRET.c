@@ -38,6 +38,7 @@ extern FRESULT fresult;
 extern FATFS fs;
 extern FIL fil;
 extern uint8_t filename[];
+extern uint8_t pathname[];
 
 extern Disk_drvTypeDef  disk;
 
@@ -93,7 +94,7 @@ HAL_StatusTypeDef CAN_Log_Buffer_pull(void)
 {
 	if(CAN_Log_Buffer.Pointer_Read != CAN_Log_Buffer.Pointer_Write)
 	{
-		uint16_t length = BuildFrameToFile(CAN_Log_Buffer.Item[CAN_Log_Buffer.Pointer_Read], 0, flash_buffer);
+		uint16_t length = BuildFrameToFile(CAN_Log_Buffer.Item[CAN_Log_Buffer.Pointer_Read], flash_buffer);
 		if(Save_to_File(flash_buffer, length) == HAL_OK)
 		{
 			CAN_Log_Buffer.Pointer_Read = (CAN_Log_Buffer.Pointer_Read < (CAN_BUFFER_SIZE-1)) ? (CAN_Log_Buffer.Pointer_Read + 1) : 0;
@@ -110,48 +111,81 @@ HAL_StatusTypeDef CAN_Log_Buffer_pull(void)
 	}
 }
 
-void Generate_Next_FileName(uint8_t * name)
+void Generate_Next_FileName(uint8_t * name, uint8_t * path)
 {
 	static uint32_t num_file = 0;
 	uint32_t pie;
 	uint8_t piece;
 	uint32_t pow10 = 10000000;
 	num_file++;
+
+	name[0] = '/';
+	name[1] = path[0];
+	name[2] = path[1];
+	name[3] = path[2];
+	name[4] = path[3];
+	name[5] = path[4];
+	name[6] = path[5];
+	name[7] = path[6];
+	name[8] = path[7];
+	name[9] = '/';
+
 	if(num_file > 99999999) num_file = 0;
 	pie = num_file;
 	for(int i = 0; i < 7; i++)
 	{
 		piece = pie / pow10;
 		pie -= piece * pow10;
-		name[i] = piece + '0';
+		name[i + LOG_NAME_SHIFT] = piece + '0';
 		pow10 /= 10;
 	}
-	name[7] = pie +'0';
+	name[7 + LOG_NAME_SHIFT] = pie +'0';
+	name[8 + LOG_NAME_SHIFT] = '.';
 	if(eeprom_settings.fileOutputType == BINARYFILE)
 	{
-		name[9] = 'L';
-		name[10] = 'O';
-		name[11] = 'G';
+		name[9 + LOG_NAME_SHIFT] = 'L';
+		name[10 + LOG_NAME_SHIFT] = 'O';
+		name[11 + LOG_NAME_SHIFT] = 'G';
 	}
 	else if(eeprom_settings.fileOutputType == GVRET_FILE)
 	{
-		name[9] = 'C';
-		name[10] = 'S';
-		name[11] = 'V';
+		name[9 + LOG_NAME_SHIFT] = 'C';
+		name[10 + LOG_NAME_SHIFT] = 'S';
+		name[11 + LOG_NAME_SHIFT] = 'V';
 	}
 	else if(eeprom_settings.fileOutputType == CRTD_FILE)
 	{
-		name[9] = 'C';
-		name[10] = 'R';
-		name[11] = 'T';
+		name[9 + LOG_NAME_SHIFT] = 'C';
+		name[10 + LOG_NAME_SHIFT] = 'R';
+		name[11 + LOG_NAME_SHIFT] = 'T';
 	}
 	else
 	{
-		name[9] = 'T';
-		name[10] = 'X';
-		name[11] = 'T';
+		name[9 + LOG_NAME_SHIFT] = 'T';
+		name[10 + LOG_NAME_SHIFT] = 'X';
+		name[11 + LOG_NAME_SHIFT] = 'T';
 	}
-	name[12] = 0;
+	name[12 + LOG_NAME_SHIFT] = 0;
+}
+
+void Generate_Next_Path(uint8_t * name)
+{
+	static uint32_t num_path = 0;
+	uint32_t pie;
+	uint8_t piece;
+	uint32_t pow10 = 10000;
+	num_path++;
+	if(num_path > 99999) num_path = 0;
+	pie = num_path;
+	for(int i = 0; i < 4; i++)
+	{
+		piece = pie / pow10;
+		pie -= piece * pow10;
+		name[i + LOG_PATH_SHIFT] = piece + '0';
+		pow10 /= 10;
+	}
+	name[4 + LOG_PATH_SHIFT] = pie +'0';
+	name[5 + LOG_PATH_SHIFT] = 0;
 }
 
 void CAN_Buffer_clean(void)
@@ -350,14 +384,14 @@ HAL_StatusTypeDef CAN_Init_Custom(uint32_t speed, uint32_t mode)
 
 HAL_StatusTypeDef LIN_Init_Custom(uint32_t speed, uint32_t mode)
 {
-	  huart3.Instance = USART3;
-	  huart3.Init.BaudRate = speed;
-	  huart3.Init.WordLength = UART_WORDLENGTH_8B;
-	  huart3.Init.StopBits = UART_STOPBITS_1;
-	  huart3.Init.Parity = UART_PARITY_NONE;
-	  huart3.Init.Mode = mode;
-	  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-	  if (HAL_LIN_Init(&huart1, UART_LINBREAKDETECTLENGTH_10B) != HAL_OK)
+//	  huart3.Instance = USART3;
+	  huart_lin->Init.BaudRate = speed;
+//	  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+//	  huart3.Init.StopBits = UART_STOPBITS_1;
+//	  huart3.Init.Parity = UART_PARITY_NONE;
+//	  huart3.Init.Mode = mode;
+//	  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+	  if (HAL_LIN_Init(huart_lin, UART_LINBREAKDETECTLENGTH_10B) != HAL_OK)
 	  {
 	    return HAL_ERROR;
 	  }
@@ -444,7 +478,7 @@ uint16_t BuildFrameToUSB (can_msg_t frame, int whichBus, uint8_t * buf)
             if (frame.header.IDE == CAN_ID_EXT) id_temp = frame.header.ExtId | 1 << 31;
             else id_temp = frame.header.StdId;
             buf[pointer++] = 0xF1;
-            buf[pointer++] = eeprom_settings.numBus; //0 = canbus frame sending
+            buf[pointer++] = frame.bus; //0 = canbus frame sending
             buf[pointer++] = (uint8_t)(frame.timestamp & 0xFF);
             buf[pointer++] = (uint8_t)(frame.timestamp >> 8);
             buf[pointer++] = (uint8_t)(frame.timestamp >> 16);
@@ -481,7 +515,7 @@ uint16_t BuildFrameToUSB (can_msg_t frame, int whichBus, uint8_t * buf)
 }
 
 
-uint16_t BuildFrameToFile(can_msg_t frame, int whichBus, uint8_t * buff)
+uint16_t BuildFrameToFile(can_msg_t frame, uint8_t * buff)
 {
    // uint8_t buff[40];
     //uint8_t temp;
@@ -498,15 +532,17 @@ uint16_t BuildFrameToFile(can_msg_t frame, int whichBus, uint8_t * buff)
         buff[pointer++] = (uint8_t)(id_temp >> 8);
         buff[pointer++] = (uint8_t)(id_temp >> 16);
         buff[pointer++] = (uint8_t)(id_temp >> 24);
-        buff[pointer++] = frame.header.DLC + (uint8_t)(whichBus << 4);
+        buff[pointer++] = frame.header.DLC + (uint8_t)(frame.bus << 4);
         for (int c = 0; c < frame.header.DLC; c++) {
             buff[pointer++] = frame.data_byte[c];
         }
         //Logger::fileRaw(buff, 9 + frame.length);
+
+
     } else if (eeprom_settings.fileOutputType == GVRET_FILE) {
     	if (frame.header.IDE == CAN_ID_EXT) id_temp = frame.header.ExtId;
     	else id_temp = frame.header.StdId;
-        sprintf((char *)buff, "%i,%x,%i,%i,%i", (int)frame.timestamp, id_temp, (int)frame.header.IDE, whichBus, (int)frame.header.DLC);
+        sprintf((char *)buff, "%i,%x,%i,%i,%i", (int)frame.timestamp, id_temp, (int)frame.header.IDE, frame.bus, (int)frame.header.DLC);
         //Logger::fileRaw(buff, strlen((char *)buff));
         pointer = strlen((char *)buff);
 
@@ -528,6 +564,7 @@ uint16_t BuildFrameToFile(can_msg_t frame, int whichBus, uint8_t * buff)
         buff[pointer++] = '\r';
         buff[pointer++] = '\n';
         //Logger::fileRaw(buff, 2);
+
 
     } else if (eeprom_settings.fileOutputType == CRTD_FILE) {
         int idBits = 11;
@@ -970,6 +1007,7 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         	can_tx_msg.header.StdId = CAN_TxHeader.StdId;
         	can_tx_msg.header.RTR = CAN_TxHeader.RTR;
         	can_tx_msg.header.IDE = CAN_TxHeader.IDE;
+        	can_tx_msg.bus = eeprom_settings.numBus;
         	CAN_Log_Buffer_Write_Data(can_tx_msg);
 
         	return CR;
@@ -1176,7 +1214,7 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         	if(cmd_buf[1] < '0' || cmd_buf[1] > '4') return ERROR;
         	eeprom_settings.numBus = HexTo4bits(cmd_buf[1]) - 1;
         	//Change_CAN_channel();
-        	Open_CAN_cannel();
+        	if(Open_CAN_cannel() != HAL_OK) return ERROR;
         	return CR;
 
 
@@ -1250,14 +1288,24 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         			return ERROR;
         		}
         	}
+
         	do
         	{
-        		Generate_Next_FileName(filename);
+        		Generate_Next_Path(pathname);
+        		fresult = f_mkdir((TCHAR*)pathname);
+        	}
+        	while(fresult == FR_EXIST);
+
+        	if(fresult != FR_OK) return ERROR;
+
+        	do
+        	{
+        		Generate_Next_FileName(filename, pathname);
         		fresult = f_open(&fil, (TCHAR*)filename, FA_WRITE | FA_CREATE_NEW | FA_CREATE_ALWAYS);
         	}
         	while(fresult == FR_EXIST);
         	if(fresult == FR_OK) conf.loger_run = true;
-        	else return ERROR;
+        	else
         	return CR;
 
         case HELP:

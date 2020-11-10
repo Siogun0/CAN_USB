@@ -110,6 +110,7 @@ HAL_StatusTypeDef Save_to_File(uint8_t * buf, uint32_t len);
 #define EEPROM_SETINGS_ADDR	0x00
 #define EEPROM_SCRIPT_ADDR	0x100
 
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

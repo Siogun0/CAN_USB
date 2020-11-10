@@ -21,6 +21,7 @@
 "Middlewares/Third_Party/FatFs/src/ff_gen_drv.o"
 "Middlewares/Third_Party/FatFs/src/option/syscall.o"
 "Src/GVRET.o"
+"Src/LIN.o"
 "Src/button.o"
 "Src/can.o"
 "Src/dma.o"

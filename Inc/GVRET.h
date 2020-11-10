@@ -38,6 +38,11 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #define LOG_FILE_SAVE_TIMEOUT 60000
 
+#define LOG_PATH	"LOG12345"
+#define LOG_PATH_SHIFT	3
+#define LOG_NAME	"/LOG12345/12345678.log"
+#define LOG_NAME_SHIFT	10
+
 typedef enum
 {
 	false = 0,
@@ -267,6 +272,7 @@ typedef struct
 		uint64_t data_full;
 	};
 	can_dir_t can_dir;
+	uint8_t bus;
 } can_msg_t;
 
 
@@ -322,8 +328,9 @@ HAL_StatusTypeDef Open_LIN_cannel(void);
 void STM_bxCAN_calc(uint32_t freq, float bitrate, CAN_HandleTypeDef * hcan);
 uint8_t exec_usb_cmd (uint8_t * cmd_buf);
 HAL_StatusTypeDef SetFilterCAN(uint32_t id, uint32_t mask_or_id, uint32_t mode, uint32_t num);
-void Generate_Next_FileName(uint8_t * name);
-uint16_t BuildFrameToFile(can_msg_t frame, int whichBus, uint8_t * buff);
+void Generate_Next_FileName(uint8_t * name, uint8_t * path);
+void Generate_Next_Path(uint8_t * name);
+uint16_t BuildFrameToFile(can_msg_t frame, uint8_t * buff);
 HAL_StatusTypeDef copy_script(uint8_t * buf, uint32_t size);
 #endif /* GVRET_H_ */
 

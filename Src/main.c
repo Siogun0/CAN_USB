@@ -34,6 +34,7 @@
 #include "button.h"
 #include "GVRET.h"
 #include "eeprom.h"
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -45,6 +46,8 @@
 /* USER CODE BEGIN PD */
 UART_HandleTypeDef *huart_active;
 UART_HandleTypeDef *huart_lin;
+
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -59,7 +62,7 @@ uint64_t time_stamp_UART = 0;
 uint64_t time_stamp_LED = 0;
 uint64_t time_stamp_BUT = 0;
 uint64_t time_stamp_SAVE = 0;
-can_msg_t can_msg;
+//can_msg_t can_msg;
 uint8_t uart_tx_bufer[128];
 uint8_t uart_tx_bufer_1[128];
 uint8_t uart_tx_bufer_active_no = 0;
@@ -71,7 +74,8 @@ uint32_t uart_rx_pointer_w = 0;
 uint32_t uart_rx_pointer_r = 0;
 uint8_t uart_rx_char;
 uint8_t flash_buffer[128];
-uint8_t filename[] = "abcdefgh.log";
+uint8_t filename[] = LOG_NAME;
+uint8_t pathname[] = LOG_PATH;
 
 uint8_t debug_buf[1024];
 uint32_t debug_pt = 0;
@@ -208,6 +212,7 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
 	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &can_rx_buf[0].header, can_rx_buf[0].data_byte);
 	can_rx_buf[0].timestamp = HAL_GetTick();
+	can_rx_buf[0].bus = eeprom_settings.numBus;
 	CAN_Buffer_Write_Data(can_rx_buf[0]);
 	CAN_Log_Buffer_Write_Data(can_rx_buf[0]);
 	HAL_GPIO_WritePin(RX_LED_GPIO_Port, RX_LED_Pin, GPIO_PIN_SET);
@@ -313,7 +318,6 @@ int main(void)
 			fresult = f_open(&fil, "script.txt", FA_READ);
 			if(fresult == FR_OK)
 			{
-				uint32_t br = 0;
 				do
 				{
 					if(f_gets((char*)debug_buf, sizeof(debug_buf), &fil) != 0)
@@ -496,8 +500,21 @@ int main(void)
 					{
 						  do
 						  {
-							  Generate_Next_FileName(filename);
+							  Generate_Next_FileName(filename, pathname);
 							  fresult = f_open(&fil, (const TCHAR*)filename, FA_WRITE | FA_CREATE_NEW | FA_CREATE_ALWAYS);
+
+							  if(fresult == FR_DENIED) // Full_directory
+							  {
+						        	do
+						        	{
+						        		Generate_Next_Path(pathname);
+						        		fresult = f_mkdir((TCHAR*)pathname);
+						        	}
+						        	while(fresult == FR_EXIST);
+						        	if(fresult != FR_OK) return ERROR;
+						        	Generate_Next_FileName(filename, pathname);
+						        	fresult = f_open(&fil, (const TCHAR*)filename, FA_WRITE | FA_CREATE_NEW | FA_CREATE_ALWAYS);
+							  }
 						  }
 						  while(fresult == FR_EXIST);
 					}
