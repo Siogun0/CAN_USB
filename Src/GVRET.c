@@ -542,7 +542,7 @@ uint16_t BuildFrameToFile(can_msg_t frame, uint8_t * buff)
     } else if (eeprom_settings.fileOutputType == GVRET_FILE) {
     	if (frame.header.IDE == CAN_ID_EXT) id_temp = frame.header.ExtId;
     	else id_temp = frame.header.StdId;
-        sprintf((char *)buff, "%i,%x,%i,%i,%i", (int)frame.timestamp, id_temp, (int)frame.header.IDE, frame.bus, (int)frame.header.DLC);
+        sprintf((char *)buff, "%i,%x,%i,%i,%i", (int)frame.timestamp, id_temp, (int)frame.header.IDE, (int)frame.bus, (int)frame.header.DLC);
         //Logger::fileRaw(buff, strlen((char *)buff));
         pointer = strlen((char *)buff);
 
@@ -1061,6 +1061,7 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         	can_tx_msg.header.StdId = CAN_TxHeader.StdId;
         	can_tx_msg.header.RTR = CAN_TxHeader.RTR;
         	can_tx_msg.header.IDE = CAN_TxHeader.IDE;
+        	can_tx_msg.bus = eeprom_settings.numBus;
         	CAN_Log_Buffer_Write_Data(can_tx_msg);
         	return CR;
 
@@ -1093,6 +1094,7 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         	can_tx_msg.header.StdId = CAN_TxHeader.StdId;
         	can_tx_msg.header.RTR = CAN_TxHeader.RTR;
         	can_tx_msg.header.IDE = CAN_TxHeader.IDE;
+        	can_tx_msg.bus = eeprom_settings.numBus;
         	CAN_Log_Buffer_Write_Data(can_tx_msg);
         	return CR;
 
@@ -1144,6 +1146,7 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         	can_tx_msg.header.StdId = CAN_TxHeader.StdId;
         	can_tx_msg.header.RTR = CAN_TxHeader.RTR;
         	can_tx_msg.header.IDE = CAN_TxHeader.IDE;
+        	can_tx_msg.bus = eeprom_settings.numBus;
         	CAN_Log_Buffer_Write_Data(can_tx_msg);
         	return CR;
 
@@ -1305,7 +1308,7 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         	}
         	while(fresult == FR_EXIST);
         	if(fresult == FR_OK) conf.loger_run = true;
-        	else
+        	else return ERROR;
         	return CR;
 
         case HELP:
@@ -1603,6 +1606,7 @@ void Check_Command(uint8_t in_byte)
                 	can_tx_msg.header.StdId = CAN_TxHeader.StdId;
                 	can_tx_msg.header.RTR = CAN_TxHeader.RTR;
                 	can_tx_msg.header.IDE = CAN_TxHeader.IDE;
+                	can_tx_msg.bus = eeprom_settings.numBus;
                 	CAN_Log_Buffer_Write_Data(can_tx_msg);
                 }
 

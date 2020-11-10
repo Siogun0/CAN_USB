@@ -203,6 +203,7 @@ void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
 	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO1, &can_rx_buf[1].header, can_rx_buf[1].data_byte);
 	can_rx_buf[1].timestamp = HAL_GetTick();
+	can_rx_buf[1].bus = eeprom_settings.numBus;
 	CAN_Buffer_Write_Data(can_rx_buf[1]);
 	CAN_Log_Buffer_Write_Data(can_rx_buf[1]);
 	HAL_GPIO_WritePin(RX_LED_GPIO_Port, RX_LED_Pin, GPIO_PIN_SET);
