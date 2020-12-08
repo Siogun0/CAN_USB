@@ -23,6 +23,7 @@
 #include "stm32f1xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "GVRET.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -256,20 +257,6 @@ void DMA1_Channel7_IRQHandler(void)
 }
 
 /**
-  * @brief This function handles USB high priority or CAN TX interrupts.
-  */
-void USB_HP_CAN1_TX_IRQHandler(void)
-{
-  /* USER CODE BEGIN USB_HP_CAN1_TX_IRQn 0 */
-
-  /* USER CODE END USB_HP_CAN1_TX_IRQn 0 */
-  HAL_CAN_IRQHandler(&hcan);
-  /* USER CODE BEGIN USB_HP_CAN1_TX_IRQn 1 */
-
-  /* USER CODE END USB_HP_CAN1_TX_IRQn 1 */
-}
-
-/**
   * @brief This function handles USB low priority or CAN RX0 interrupts.
   */
 void USB_LP_CAN1_RX0_IRQHandler(void)
@@ -289,6 +276,85 @@ void USB_LP_CAN1_RX0_IRQHandler(void)
 void USART1_IRQHandler(void)
 {
   /* USER CODE BEGIN USART1_IRQn 0 */
+//  recieve LIN message
+	uint32_t errorflags = 0x00U;
+//	uint32_t break_detected = 0;
+	static uint32_t byte_cnt = 0;
+	static uint8_t buffer[10] = {0};
+
+	if(USART1->SR & (uint32_t)USART_SR_IDLE) // Idle detect
+	{
+		uart_rx_char = USART1->DR; // Lost char
+		if(byte_cnt > 0 && byte_cnt < 11)
+		{
+			can_msg_t temp_msg;
+			temp_msg = Parse_LIN_msg(buffer, byte_cnt-1);
+			CAN_Buffer_Write_Data(temp_msg);
+			CAN_Log_Buffer_Write_Data(temp_msg);
+		}
+		return;
+	}
+	if(USART1->SR & (uint32_t)USART_SR_LBD) // Break detect
+	{
+		if(byte_cnt > 0 && byte_cnt < 11)
+		{
+			can_msg_t temp_msg;
+			temp_msg = Parse_LIN_msg(buffer, byte_cnt-1);
+			CAN_Buffer_Write_Data(temp_msg);
+			CAN_Log_Buffer_Write_Data(temp_msg);
+		}
+		USART1->SR &= ~(uint32_t)USART_SR_LBD;
+		uart_rx_char = USART1->DR; // Lost char
+		byte_cnt = 0;
+		buffer[0] = buffer[1] = buffer[2] = buffer[3] = buffer[4] = buffer[5] = buffer[6] = buffer[7] = buffer[8] = 0;
+		return;
+	}
+	/* If no error occurs */
+	errorflags = (USART1->SR & (uint32_t)(USART_SR_PE | USART_SR_FE | USART_SR_ORE | USART_SR_NE));
+	if(errorflags == 0)
+	{
+		/* UART in mode Receiver -------------------------------------------------*/
+		if(((USART1->SR & USART_SR_RXNE) != 0) && ((USART1->CR1 & USART_CR1_RXNEIE) != 0))
+		{
+
+			if(byte_cnt == 0)
+			{
+				uart_rx_char = USART1->DR;
+				byte_cnt = (uart_rx_char == 0x55) ? 1 : 0xFF;
+			}
+			else if(byte_cnt > 0 && byte_cnt <= 10)
+			{
+				buffer[byte_cnt-1] = USART1->DR;
+				byte_cnt++;
+			}
+
+			if(byte_cnt == 11)
+			{
+				can_msg_t temp_msg;
+				temp_msg = Parse_LIN_msg(buffer, byte_cnt-1);
+				CAN_Buffer_Write_Data(temp_msg);
+				CAN_Log_Buffer_Write_Data(temp_msg);
+			}
+
+			//UART_Receive_IT(huart);
+//			if(((uart_rx_pointer_w + 1) & 1023) == uart_rx_pointer_r)
+//			{
+//				uart_rx_char = USART3->DR; // Lost char
+//				return;
+//			}
+//
+//			uart_rx_pointer_w = (uart_rx_pointer_w + 1) & 1023;
+//
+//			uart_rx_bufer[uart_rx_pointer_w] = USART3->DR;
+			return;
+		}
+	}
+	else
+	{
+		uart_rx_char = USART1->DR; // Lost char
+		byte_cnt = 0xFF;
+		return;
+	}
 
   /* USER CODE END USART1_IRQn 0 */
   HAL_UART_IRQHandler(&huart1);

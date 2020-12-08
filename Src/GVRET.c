@@ -141,19 +141,19 @@ void Generate_Next_FileName(uint8_t * name, uint8_t * path)
 	}
 	name[7 + LOG_NAME_SHIFT] = pie +'0';
 	name[8 + LOG_NAME_SHIFT] = '.';
-	if(eeprom_settings.fileOutputType == BINARYFILE)
+	if(conf.fileOutputType == BINARYFILE)
 	{
 		name[9 + LOG_NAME_SHIFT] = 'L';
 		name[10 + LOG_NAME_SHIFT] = 'O';
 		name[11 + LOG_NAME_SHIFT] = 'G';
 	}
-	else if(eeprom_settings.fileOutputType == GVRET_FILE)
+	else if(conf.fileOutputType == GVRET_FILE)
 	{
 		name[9 + LOG_NAME_SHIFT] = 'C';
 		name[10 + LOG_NAME_SHIFT] = 'S';
 		name[11 + LOG_NAME_SHIFT] = 'V';
 	}
-	else if(eeprom_settings.fileOutputType == CRTD_FILE)
+	else if(conf.fileOutputType == CRTD_FILE)
 	{
 		name[9 + LOG_NAME_SHIFT] = 'C';
 		name[10 + LOG_NAME_SHIFT] = 'R';
@@ -478,7 +478,7 @@ uint16_t BuildFrameToUSB (can_msg_t frame, int whichBus, uint8_t * buf)
             if (frame.header.IDE == CAN_ID_EXT) id_temp = frame.header.ExtId | 1 << 31;
             else id_temp = frame.header.StdId;
             buf[pointer++] = 0xF1;
-            buf[pointer++] = frame.bus; //0 = canbus frame sending
+            buf[pointer++] = 0; //0 = canbus frame sending
             buf[pointer++] = (uint8_t)(frame.timestamp & 0xFF);
             buf[pointer++] = (uint8_t)(frame.timestamp >> 8);
             buf[pointer++] = (uint8_t)(frame.timestamp >> 16);
@@ -487,7 +487,7 @@ uint16_t BuildFrameToUSB (can_msg_t frame, int whichBus, uint8_t * buf)
             buf[pointer++] = (uint8_t)(id_temp >> 8);
             buf[pointer++] = (uint8_t)(id_temp >> 16);
             buf[pointer++] = (uint8_t)(id_temp >> 24);
-            buf[pointer++] = frame.header.DLC + (uint8_t)(whichBus << 4);
+            buf[pointer++] = frame.header.DLC + (uint8_t)(frame.bus << 4);
             for (int c = 0; c < frame.header.DLC; c++) {
                 buf[pointer++] = frame.data_byte[c];
             }
@@ -521,7 +521,7 @@ uint16_t BuildFrameToFile(can_msg_t frame, uint8_t * buff)
     //uint8_t temp;
     unsigned int id_temp;
     uint32_t pointer = 0;
-    if (eeprom_settings.fileOutputType == BINARYFILE) {
+    if (conf.fileOutputType == BINARYFILE) {
     	if (frame.header.IDE == CAN_ID_EXT) id_temp = frame.header.ExtId | 1 << 31;
     	else id_temp = frame.header.StdId;
         buff[pointer++] = (uint8_t)(frame.timestamp & 0xFF);
@@ -539,7 +539,7 @@ uint16_t BuildFrameToFile(can_msg_t frame, uint8_t * buff)
         //Logger::fileRaw(buff, 9 + frame.length);
 
 
-    } else if (eeprom_settings.fileOutputType == GVRET_FILE) {
+    } else if (conf.fileOutputType == GVRET_FILE) {
     	if (frame.header.IDE == CAN_ID_EXT) id_temp = frame.header.ExtId;
     	else id_temp = frame.header.StdId;
         sprintf((char *)buff, "%i,%x,%i,%i,%i", (int)frame.timestamp, id_temp, (int)frame.header.IDE, (int)frame.bus, (int)frame.header.DLC);
@@ -566,7 +566,7 @@ uint16_t BuildFrameToFile(can_msg_t frame, uint8_t * buff)
         //Logger::fileRaw(buff, 2);
 
 
-    } else if (eeprom_settings.fileOutputType == CRTD_FILE) {
+    } else if (conf.fileOutputType == CRTD_FILE) {
         int idBits = 11;
         if (frame.header.IDE == CAN_ID_EXT)
         {
@@ -1280,6 +1280,7 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         		else return ERROR;
         	}
 
+
         	if(conf.sd_card_avalible == false)
         	{
         		fresult = f_mount(&fs, "0:", 1);
@@ -1292,7 +1293,11 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         		}
         	}
 
-        	do
+        	if(conf.loger_run == true) return CR;
+
+        	conf.fileOutputType = eeprom_settings.fileOutputType;
+
+        	do // TODO EMPTY FOLDER delete/reuse
         	{
         		Generate_Next_Path(pathname);
         		fresult = f_mkdir((TCHAR*)pathname);
@@ -1307,7 +1312,11 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         		fresult = f_open(&fil, (TCHAR*)filename, FA_WRITE | FA_CREATE_NEW | FA_CREATE_ALWAYS);
         	}
         	while(fresult == FR_EXIST);
-        	if(fresult == FR_OK) conf.loger_run = true;
+        	if(fresult == FR_OK)
+        	{
+        		conf.fileOutputType = eeprom_settings.fileOutputType;
+        		conf.loger_run = true;
+        	}
         	else return ERROR;
         	return CR;
 
@@ -1914,13 +1923,62 @@ void Check_Command(uint8_t in_byte)
     }
 }
 
+can_msg_t Parse_LIN_msg(uint8_t * in_buf, uint8_t bytes)
+{
+	can_msg_t msg = {0};
+	msg.timestamp = HAL_GetTick();
+	msg.header.DLC = bytes-2;
+	msg.data_byte[0] = in_buf[1];
+	msg.data_byte[1] = in_buf[2];
+	msg.data_byte[2] = in_buf[3];
+	msg.data_byte[3] = in_buf[4];
+	msg.data_byte[4] = in_buf[5];
+	msg.data_byte[5] = in_buf[6];
+	msg.data_byte[6] = in_buf[7];
+	msg.data_byte[7] = in_buf[8];
+	msg.lin_checksumm = in_buf[9];
+	msg.can_dir = DIR_RECEIVE;
+	msg.bus = 3;
+
+	if((in_buf[0] ^ in_buf[1] ^ in_buf[2] ^ in_buf[3] ^ in_buf[4] ^ in_buf[5] ^ in_buf[6] ^ in_buf[7] ^ in_buf[8]) + in_buf[9] == 0xFF)
+	{
+		msg.header.ExtId = in_buf[0];
+		msg.header.IDE = CAN_ID_EXT;
+	}
+	else
+	{
+		msg.header.StdId = in_buf[0];
+		msg.header.IDE = CAN_ID_STD;
+	}
+	return msg;
+}
+
 HAL_StatusTypeDef Open_LIN_cannel()
 {
+	HAL_GPIO_WritePin(LIN_EN_GPIO_Port, LIN_EN_Pin, GPIO_PIN_SET);
+	huart1.Init.BaudRate = eeprom_settings.CAN_Speed[eeprom_settings.numBus];
+
+	huart1.Init.Mode = UART_MODE_TX_RX;
+	if (HAL_LIN_Init(&huart1, UART_LINBREAKDETECTLENGTH_10B) == HAL_OK)
+	{
+		  /* Enable the UART Data Register not empty Interrupt */
+		  __HAL_UART_ENABLE_IT(&huart1, UART_IT_RXNE);
+		  __HAL_UART_ENABLE_IT(&huart1, UART_IT_LBD);
+		  __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);
+		  __HAL_UART_ENABLE_IT(&huart1, UART_IT_RXNE);
+		return HAL_OK;
+	}
 	return HAL_ERROR;
 }
 
 HAL_StatusTypeDef Close_LIN_cannel(void)
 {
+	HAL_GPIO_WritePin(LIN_EN_GPIO_Port, LIN_EN_Pin, GPIO_PIN_RESET);
+	HAL_UART_DeInit(&huart1);
+	  __HAL_UART_DISABLE_IT(&huart1, UART_IT_RXNE);
+	  __HAL_UART_DISABLE_IT(&huart1, UART_IT_LBD);
+	  __HAL_UART_DISABLE_IT(&huart1, UART_IT_IDLE);
+	  __HAL_UART_DISABLE_IT(&huart1, UART_IT_RXNE);
 	return HAL_ERROR;
 }
 
@@ -1942,8 +2000,9 @@ HAL_StatusTypeDef Open_CAN_cannel()
 				  	  	  	  	  	  	  	  	 CAN_IT_RX_FIFO0_FULL |
 												 CAN_IT_RX_FIFO1_MSG_PENDING |
 												 CAN_IT_RX_FIFO1_FULL |
-												 CAN_IT_TX_MAILBOX_EMPTY |
-												 CAN_IT_BUSOFF) != HAL_OK) return HAL_ERROR;
+												 //CAN_IT_TX_MAILBOX_EMPTY |
+												 CAN_IT_BUSOFF
+												 ) != HAL_OK) return HAL_ERROR;
 
 		return HAL_OK;
 	}

@@ -293,6 +293,7 @@ int main(void)
   }
   if(eeprom_settings.UART_Speed == 0xFFFF) {eeprom_settings.UART_Speed = 115200; first = true;}
   if(eeprom_settings.fileOutputType > 10) {eeprom_settings.fileOutputType = CRTD_FILE; first = true;}
+  if(eeprom_settings.SD_autoconnect > 10) {eeprom_settings.SD_autoconnect = 0; first = true;}
 
   if(first == true) EEPROM_Write(&hspi2, EEPROM_SETINGS_ADDR, (uint8_t*)&eeprom_settings, sizeof(eeprom_settings));
 
@@ -379,10 +380,10 @@ int main(void)
 #if 0
   /* Enable the UART Parity Error Interrupt */
   __HAL_UART_ENABLE_IT(&huart3, UART_IT_PE);
-
+#endif
   /* Enable the UART Error Interrupt: (Frame error, noise error, overrun error) */
   __HAL_UART_ENABLE_IT(&huart3, UART_IT_ERR);
-#endif
+
   /* Enable the UART Data Register not empty Interrupt */
   __HAL_UART_ENABLE_IT(&huart3, UART_IT_RXNE);
 
@@ -491,14 +492,16 @@ int main(void)
 			buff_stat = CAN_Log_Buffer_pull();
 
 			if(HAL_GetTick() - time_stamp_SAVE >= LOG_FILE_SAVE_TIMEOUT
-					|| ((conf.state == IDLE_ST || conf.loger_run == false) && buff_stat == HAL_BUSY))
+					|| ((conf.state == IDLE_ST || conf.loger_run == false) && buff_stat == HAL_BUSY)
+					|| conf.fileOutputType != eeprom_settings.fileOutputType)
 			{
 				time_stamp_SAVE = HAL_GetTick();
-				if(f_size(&fil) != 0)
+				if(f_size(&fil) != 0 || conf.fileOutputType != eeprom_settings.fileOutputType) // TODO save new format check
 				{
 					fresult = f_close(&fil);
 					if(conf.loger_run == true)
 					{
+						conf.fileOutputType = eeprom_settings.fileOutputType;
 						  do
 						  {
 							  Generate_Next_FileName(filename, pathname);

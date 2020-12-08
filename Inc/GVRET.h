@@ -50,33 +50,13 @@ typedef enum
 }boolean;
 
 
-/*#define LED_Pin GPIO_PIN_13
-#define LED_GPIO_Port GPIOC
-#define HS_CAN_EN_Pin GPIO_PIN_4
-#define HS_CAN_EN_GPIO_Port GPIOA
-#define FT_CAN_EN_Pin GPIO_PIN_5
-#define FT_CAN_EN_GPIO_Port GPIOA
-#define SW_CAN_EN_Pin GPIO_PIN_6
-#define SW_CAN_EN_GPIO_Port GPIOA
-#define LIN_EN_Pin GPIO_PIN_7
-#define LIN_EN_GPIO_Port GPIOA
-#define MODE_SEL_Pin GPIO_PIN_0
-#define MODE_SEL_GPIO_Port GPIOB
-#define BUTTON_Pin GPIO_PIN_1
-#define BUTTON_GPIO_Port GPIOB
-#define BOOT1_Pin GPIO_PIN_2
-#define BOOT1_GPIO_Port GPIOB
-#define LIN_TX_Pin GPIO_PIN_10
-#define LIN_TX_GPIO_Port GPIOB
-#define LIN_RX_Pin GPIO_PIN_11
-#define LIN_RX_GPIO_Port GPIOB*/
-/* USER CODE BEGIN Private defines */
 #define HW_VER        0x10		// hardware version
 #define SW_VER        0x10		// software version
 #define SW_VER_MAJOR  0x01    // software major version
 #define SW_VER_MINOR  0x0A    // software minor version
 #define SERIAL        "0001"	// device serial number
 
+// LAWICEL commands
 #if !defined(CR)
 #define CR            13	// command end tag (ASCII CR)
 #endif
@@ -126,7 +106,7 @@ typedef enum
 
 #define OCR_VALUE ((unsigned char)((unsigned long)(TIME_STAMP_TICK) / (1000000L / (float)((unsigned long)F_CPU / 64L))))
 
-
+// GVRET commands
 typedef enum  {
     IDLE = 0,
     GET_COMMAND = 1,
@@ -163,31 +143,6 @@ typedef enum
     PROTO_SET_EXT_BUSES = 14 //E
 } GVRET_PROTOCOL;
 
-typedef struct {
-    uint8_t eepromWPPin;
-    uint8_t CAN0EnablePin;
-    uint8_t CAN1EnablePin;
-    uint8_t SWCANMode0Pin;
-    uint8_t SWCANMode1Pin;
-    boolean useSD; //should we attempt to use the SDCard? (No logging possible otherwise)
-    boolean logToFile; //are we currently supposed to be logging to file?
-    boolean dedicatedSWCAN; //true if there is a dedicated SWCAN channel. Found on CANDue 2.2 or higher boards
-    uint8_t SDCardSelPin;
-    boolean SDCardInserted;
-    uint8_t LED_CANTX;
-    uint8_t LED_CANRX;
-    uint8_t LED_LOGGING;
-    boolean txToggle; //LED toggle values
-    boolean rxToggle;
-    boolean logToggle;
-    boolean lawicelMode;
-    boolean lawicelAutoPoll;
-    boolean lawicelTimestamping;
-    int lawicelPollCounter;
-    int8_t numBus;
-    uint32_t CAN_Speed[4];
-    uint32_t CAN_mode[4];
-} SystemSettings;
 
 typedef enum {
     NONE = 0,
@@ -223,38 +178,6 @@ typedef struct {  //should be 10 bytes
 } FILTER;
 
 
-
-typedef struct { //Must stay under 256 - currently somewhere around 222
-    uint8_t version;
-
-    uint32_t CAN0Speed;
-    uint32_t CAN1Speed;
-    uint32_t SWCANSpeed;
-    boolean CAN0_Enabled;
-    boolean CAN1_Enabled;
-    boolean singleWire_Enabled; //On older hardware tries to turn CAN1 into SW, newer hardware has dedicated chips for it
-    FILTER CAN0Filters[8]; // filters for our 8 mailboxes - 10*8 = 80 bytes
-    FILTER CAN1Filters[8]; // filters for our 8 mailboxes - 10*8 = 80 bytes
-
-    boolean useBinarySerialComm; //use a binary protocol on the serial link or human readable format?
-    FILEOUTPUTTYPE fileOutputType; //what format should we use for file output?
-
-    char fileNameBase[30]; //Base filename to use
-    char fileNameExt[4]; //extension to use
-    uint16_t fileNum; //incrementing value to append to filename if we create a new file each time
-    boolean appendFile; //start a new file every power up or append to current?
-    boolean autoStartLogging; //should logging start immediately on start up?
-
-    uint8_t logLevel; //Level of logging to output on serial line
-    uint8_t sysType; //0 = CANDUE, 1 = GEVCU, 2 = CANDue 1.3 to 2.1, 3 = CANDue 2.2
-
-    uint16_t valid; //stores a validity token to make sure EEPROM is not corrupt
-
-    boolean CAN0ListenOnly; //if true we don't allow any messing with the bus but rather just passively monitor.
-    boolean CAN1ListenOnly;
-    boolean SWCANListenOnly;
-} EEPROMSettings;
-
 typedef enum
 {
 	DIR_RECEIVE,
@@ -273,7 +196,9 @@ typedef struct
 	};
 	can_dir_t can_dir;
 	uint8_t bus;
+	uint8_t lin_checksumm;
 } can_msg_t;
+
 
 
 typedef struct
@@ -298,6 +223,10 @@ typedef struct
 	uint32_t filter_mode;
 	boolean sd_card_avalible;
 	boolean loger_run;
+	boolean LIN_is_Master;
+	boolean LIN_wait_responce;
+	boolean LIN_wait_request;
+	FILEOUTPUTTYPE fileOutputType; //what format should we use for file output?
 } conf_t;
 
 extern t_eeprom_settings eeprom_settings;
@@ -332,6 +261,7 @@ void Generate_Next_FileName(uint8_t * name, uint8_t * path);
 void Generate_Next_Path(uint8_t * name);
 uint16_t BuildFrameToFile(can_msg_t frame, uint8_t * buff);
 HAL_StatusTypeDef copy_script(uint8_t * buf, uint32_t size);
+can_msg_t Parse_LIN_msg(uint8_t * in_buf, uint8_t bytes);
 #endif /* GVRET_H_ */
 
 
