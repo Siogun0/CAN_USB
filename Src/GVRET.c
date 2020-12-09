@@ -1982,6 +1982,16 @@ HAL_StatusTypeDef Close_LIN_cannel(void)
 	return HAL_ERROR;
 }
 
+//HAL_StatusTypeDef Send_LIN_response (uint8_t * buff, uint8_t len)
+//{
+//
+//}
+//
+//HAL_StatusTypeDef Check_LIN_PID_to_responce(uint8_t pid)
+//{
+//	if(pid == )
+//}
+
 HAL_StatusTypeDef Open_CAN_cannel()
 {
 	Change_CAN_channel();

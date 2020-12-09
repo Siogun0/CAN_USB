@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "GVRET.h"
+#include "LIN.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -285,28 +286,30 @@ void USART1_IRQHandler(void)
 	if(USART1->SR & (uint32_t)USART_SR_IDLE) // Idle detect
 	{
 		uart_rx_char = USART1->DR; // Lost char
-		if(byte_cnt > 0 && byte_cnt < 11)
-		{
-			can_msg_t temp_msg;
-			temp_msg = Parse_LIN_msg(buffer, byte_cnt-1);
-			CAN_Buffer_Write_Data(temp_msg);
-			CAN_Log_Buffer_Write_Data(temp_msg);
-		}
+//		if(byte_cnt > 0 && byte_cnt < 11)
+//		{
+//			can_msg_t temp_msg;
+//			temp_msg = Parse_LIN_msg(buffer, byte_cnt-1);
+//			CAN_Buffer_Write_Data(temp_msg);
+//			CAN_Log_Buffer_Write_Data(temp_msg);
+//		}
+		lin_idle_detect();
 		return;
 	}
 	if(USART1->SR & (uint32_t)USART_SR_LBD) // Break detect
 	{
-		if(byte_cnt > 0 && byte_cnt < 11)
-		{
-			can_msg_t temp_msg;
-			temp_msg = Parse_LIN_msg(buffer, byte_cnt-1);
-			CAN_Buffer_Write_Data(temp_msg);
-			CAN_Log_Buffer_Write_Data(temp_msg);
-		}
+//		if(byte_cnt > 0 && byte_cnt < 11)
+//		{
+//			can_msg_t temp_msg;
+//			temp_msg = Parse_LIN_msg(buffer, byte_cnt-1);
+//			CAN_Buffer_Write_Data(temp_msg);
+//			CAN_Log_Buffer_Write_Data(temp_msg);
+//		}
 		USART1->SR &= ~(uint32_t)USART_SR_LBD;
 		uart_rx_char = USART1->DR; // Lost char
-		byte_cnt = 0;
-		buffer[0] = buffer[1] = buffer[2] = buffer[3] = buffer[4] = buffer[5] = buffer[6] = buffer[7] = buffer[8] = 0;
+//		byte_cnt = 0;
+//		buffer[0] = buffer[1] = buffer[2] = buffer[3] = buffer[4] = buffer[5] = buffer[6] = buffer[7] = buffer[8] = 0;
+		lin_break_detect();
 		return;
 	}
 	/* If no error occurs */
@@ -316,43 +319,35 @@ void USART1_IRQHandler(void)
 		/* UART in mode Receiver -------------------------------------------------*/
 		if(((USART1->SR & USART_SR_RXNE) != 0) && ((USART1->CR1 & USART_CR1_RXNEIE) != 0))
 		{
-
-			if(byte_cnt == 0)
-			{
-				uart_rx_char = USART1->DR;
-				byte_cnt = (uart_rx_char == 0x55) ? 1 : 0xFF;
-			}
-			else if(byte_cnt > 0 && byte_cnt <= 10)
-			{
-				buffer[byte_cnt-1] = USART1->DR;
-				byte_cnt++;
-			}
-
-			if(byte_cnt == 11)
-			{
-				can_msg_t temp_msg;
-				temp_msg = Parse_LIN_msg(buffer, byte_cnt-1);
-				CAN_Buffer_Write_Data(temp_msg);
-				CAN_Log_Buffer_Write_Data(temp_msg);
-			}
-
-			//UART_Receive_IT(huart);
-//			if(((uart_rx_pointer_w + 1) & 1023) == uart_rx_pointer_r)
+			lin_byte_received(USART1->DR);
+//			if(byte_cnt == 0)
 //			{
-//				uart_rx_char = USART3->DR; // Lost char
-//				return;
+//				uart_rx_char = USART1->DR;
+//				byte_cnt = (uart_rx_char == 0x55) ? 1 : 0xFF;
+//			}
+//			else if(byte_cnt > 0 && byte_cnt <= 10)
+//			{
+//				buffer[byte_cnt-1] = USART1->DR;
+//				byte_cnt++;
 //			}
 //
-//			uart_rx_pointer_w = (uart_rx_pointer_w + 1) & 1023;
-//
-//			uart_rx_bufer[uart_rx_pointer_w] = USART3->DR;
+//			if(byte_cnt == 11)
+//			{
+//				can_msg_t temp_msg;
+//				temp_msg = Parse_LIN_msg(buffer, byte_cnt-1);
+//				CAN_Buffer_Write_Data(temp_msg);
+//				CAN_Log_Buffer_Write_Data(temp_msg);
+//			}
+
+
 			return;
 		}
 	}
 	else
 	{
 		uart_rx_char = USART1->DR; // Lost char
-		byte_cnt = 0xFF;
+		lin_fault_detect();
+//		byte_cnt = 0xFF;
 		return;
 	}
 
