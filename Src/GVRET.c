@@ -20,7 +20,7 @@ uint8_t cmd_buf[CMD_BUFFER_LENGTH];
 // command buffer index
 uint8_t buf_ind = 0;
 
-conf_t conf;
+extern conf_t conf;
 
 extern uint8_t uart_tx_bufer[1024];
 extern uint8_t uart_tx_com_bufer[32];
@@ -1000,15 +1000,19 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         		return ERROR;
         	}
 
-        	can_tx_msg.timestamp = HAL_GetTick();
-        	can_tx_msg.can_dir = DIR_TRANSMIT;
-        	can_tx_msg.header.DLC = CAN_TxHeader.DLC;
-        	can_tx_msg.header.ExtId = CAN_TxHeader.ExtId;
-        	can_tx_msg.header.StdId = CAN_TxHeader.StdId;
-        	can_tx_msg.header.RTR = CAN_TxHeader.RTR;
-        	can_tx_msg.header.IDE = CAN_TxHeader.IDE;
-        	can_tx_msg.bus = eeprom_settings.numBus;
-        	CAN_Log_Buffer_Write_Data(can_tx_msg);
+        	if(conf.loger_run == true)
+        	{
+        		can_tx_msg.timestamp = HAL_GetTick();
+        		can_tx_msg.can_dir = DIR_TRANSMIT;
+        		can_tx_msg.header.DLC = CAN_TxHeader.DLC;
+        		can_tx_msg.header.ExtId = CAN_TxHeader.ExtId;
+        		can_tx_msg.header.StdId = CAN_TxHeader.StdId;
+        		can_tx_msg.header.RTR = CAN_TxHeader.RTR;
+        		can_tx_msg.header.IDE = CAN_TxHeader.IDE;
+        		can_tx_msg.bus = eeprom_settings.numBus;
+        		CAN_Log_Buffer_Write_Data(can_tx_msg);
+        	}
+
 
         	return CR;
 
@@ -1049,20 +1053,43 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         		can_tx_msg.data_byte[i] = HexToShort(cmd_buf[i*2+5], cmd_buf[i*2+6]);
         	}
         	HAL_GPIO_WritePin(TX_LED_GPIO_Port, TX_LED_Pin, GPIO_PIN_SET);
-        	CAN_status = HAL_CAN_AddTxMessage(&hcan, &CAN_TxHeader, can_tx_msg.data_byte, &CAN_mailbox);
-        	if(CAN_status != HAL_OK)
+        	if(eeprom_settings.numBus != BUS_LIN)
         	{
-        		return ERROR;
+            	CAN_status = HAL_CAN_AddTxMessage(&hcan, &CAN_TxHeader, can_tx_msg.data_byte, &CAN_mailbox);
+            	if(CAN_status != HAL_OK)
+            	{
+            		return ERROR;
+            	}
         	}
-        	can_tx_msg.timestamp = HAL_GetTick();
-        	can_tx_msg.can_dir = DIR_TRANSMIT;
-        	can_tx_msg.header.DLC = CAN_TxHeader.DLC;
-        	can_tx_msg.header.ExtId = CAN_TxHeader.ExtId;
-        	can_tx_msg.header.StdId = CAN_TxHeader.StdId;
-        	can_tx_msg.header.RTR = CAN_TxHeader.RTR;
-        	can_tx_msg.header.IDE = CAN_TxHeader.IDE;
-        	can_tx_msg.bus = eeprom_settings.numBus;
-        	CAN_Log_Buffer_Write_Data(can_tx_msg);
+        	else // BUS_LIN
+        	{
+        		uint8_t lin_tx_buff[9];
+        		uint8_t i;
+        		for(i = 0; i < CAN_TxHeader.DLC; i++)
+        		{
+        			lin_tx_buff[i] = can_tx_msg.data_byte[i];
+        		}
+        		lin_tx_buff[i] = lin_calc_checksumm(can_tx_msg.data_byte, CAN_TxHeader.DLC, 0);
+        		CAN_status = lin_add_slave_msg(lin_calc_pid(CAN_TxHeader.StdId), lin_tx_buff, CAN_TxHeader.DLC+1);
+            	if(CAN_status != HAL_OK)
+            	{
+            		return ERROR;
+            	}
+        	}
+
+        	if(conf.loger_run == true)
+        	{
+        		can_tx_msg.timestamp = HAL_GetTick();
+        		can_tx_msg.can_dir = DIR_TRANSMIT;
+        		can_tx_msg.header.DLC = CAN_TxHeader.DLC;
+        		can_tx_msg.header.ExtId = CAN_TxHeader.ExtId;
+        		can_tx_msg.header.StdId = CAN_TxHeader.StdId;
+        		can_tx_msg.header.RTR = CAN_TxHeader.RTR;
+        		can_tx_msg.header.IDE = CAN_TxHeader.IDE;
+        		can_tx_msg.bus = eeprom_settings.numBus;
+        		CAN_Log_Buffer_Write_Data(can_tx_msg);
+        	}
+
         	return CR;
 
 
@@ -1087,15 +1114,20 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         	{
         		return ERROR;
         	}
-        	can_tx_msg.timestamp = HAL_GetTick();
-        	can_tx_msg.can_dir = DIR_TRANSMIT;
-        	can_tx_msg.header.DLC = CAN_TxHeader.DLC;
-        	can_tx_msg.header.ExtId = CAN_TxHeader.ExtId;
-        	can_tx_msg.header.StdId = CAN_TxHeader.StdId;
-        	can_tx_msg.header.RTR = CAN_TxHeader.RTR;
-        	can_tx_msg.header.IDE = CAN_TxHeader.IDE;
-        	can_tx_msg.bus = eeprom_settings.numBus;
-        	CAN_Log_Buffer_Write_Data(can_tx_msg);
+
+        	if(conf.loger_run == true)
+        	{
+        		can_tx_msg.timestamp = HAL_GetTick();
+        		can_tx_msg.can_dir = DIR_TRANSMIT;
+        		can_tx_msg.header.DLC = CAN_TxHeader.DLC;
+        		can_tx_msg.header.ExtId = CAN_TxHeader.ExtId;
+        		can_tx_msg.header.StdId = CAN_TxHeader.StdId;
+        		can_tx_msg.header.RTR = CAN_TxHeader.RTR;
+        		can_tx_msg.header.IDE = CAN_TxHeader.IDE;
+        		can_tx_msg.bus = eeprom_settings.numBus;
+        		CAN_Log_Buffer_Write_Data(can_tx_msg);
+        	}
+
         	return CR;
 
 
@@ -1139,15 +1171,19 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         	if(CAN_status != HAL_OK)
         		return ERROR;
 
-        	can_tx_msg.timestamp = HAL_GetTick();
-        	can_tx_msg.can_dir = DIR_TRANSMIT;
-        	can_tx_msg.header.DLC = CAN_TxHeader.DLC;
-        	can_tx_msg.header.ExtId = CAN_TxHeader.ExtId;
-        	can_tx_msg.header.StdId = CAN_TxHeader.StdId;
-        	can_tx_msg.header.RTR = CAN_TxHeader.RTR;
-        	can_tx_msg.header.IDE = CAN_TxHeader.IDE;
-        	can_tx_msg.bus = eeprom_settings.numBus;
-        	CAN_Log_Buffer_Write_Data(can_tx_msg);
+        	if(conf.loger_run == true)
+        	{
+        		can_tx_msg.timestamp = HAL_GetTick();
+        		can_tx_msg.can_dir = DIR_TRANSMIT;
+        		can_tx_msg.header.DLC = CAN_TxHeader.DLC;
+        		can_tx_msg.header.ExtId = CAN_TxHeader.ExtId;
+        		can_tx_msg.header.StdId = CAN_TxHeader.StdId;
+        		can_tx_msg.header.RTR = CAN_TxHeader.RTR;
+        		can_tx_msg.header.IDE = CAN_TxHeader.IDE;
+        		can_tx_msg.bus = eeprom_settings.numBus;
+        		CAN_Log_Buffer_Write_Data(can_tx_msg);
+        	}
+
         	return CR;
 
             // read Error Capture Register
@@ -1318,6 +1354,10 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         		conf.loger_run = true;
         	}
         	else return ERROR;
+        	return CR;
+
+        case LIN_MODE:
+        	conf.LIN_is_Master = (cmd_buf[1] == 'M' || cmd_buf[1] == '1') ? true : false;
         	return CR;
 
         case HELP:
@@ -1606,7 +1646,7 @@ void Check_Command(uint8_t in_byte)
                 //}
                 HAL_GPIO_WritePin(TX_LED_GPIO_Port, TX_LED_Pin, GPIO_PIN_SET);
                 CAN_TxHeader.RTR = CAN_RTR_DATA;
-                if(HAL_CAN_AddTxMessage(&hcan, &CAN_TxHeader, can_tx_msg.data_byte, &CAN_mailbox) == HAL_OK)
+                if(HAL_CAN_AddTxMessage(&hcan, &CAN_TxHeader, can_tx_msg.data_byte, &CAN_mailbox) == HAL_OK && (conf.loger_run == true))
                 {
                 	can_tx_msg.timestamp = HAL_GetTick();
                 	can_tx_msg.can_dir = DIR_TRANSMIT;
@@ -1966,6 +2006,13 @@ HAL_StatusTypeDef Open_LIN_cannel()
 		  __HAL_UART_ENABLE_IT(&huart1, UART_IT_LBD);
 		  __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);
 		  __HAL_UART_ENABLE_IT(&huart1, UART_IT_RXNE);
+
+			EEPROM_Write(&hspi2,
+					EEPROM_SETINGS_ADDR + ((uint32_t)&eeprom_settings.CAN_Speed[eeprom_settings.numBus] - (uint32_t)&eeprom_settings),
+					(uint8_t*)&eeprom_settings.CAN_Speed[eeprom_settings.numBus], sizeof(eeprom_settings.CAN_Speed[eeprom_settings.numBus]));
+			EEPROM_Write(&hspi2,
+					EEPROM_SETINGS_ADDR + ((uint32_t)&eeprom_settings.CAN_mode[eeprom_settings.numBus] - (uint32_t)&eeprom_settings),
+					(uint8_t*)&eeprom_settings.CAN_mode[eeprom_settings.numBus], sizeof(eeprom_settings.CAN_mode[eeprom_settings.numBus]));
 		return HAL_OK;
 	}
 	return HAL_ERROR;

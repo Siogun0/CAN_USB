@@ -24,6 +24,7 @@ v - get software version only \r \
 N - get device serial number \r \
 Z - toggle time stamp setting, 'Z1' - ON, 'Z0' - OFF \r \
 L - open CAN in listen only mode \r \
+l - LIN mode: lM - master, lS - slave \r \
 u - set custom USART bitrate 'u115200' \r \
 U - set USART bitrate 'U1' - 115200\r \
 B - select channel CAN/LIN 'B1' - CAN1\r \

@@ -279,9 +279,7 @@ void USART1_IRQHandler(void)
   /* USER CODE BEGIN USART1_IRQn 0 */
 //  recieve LIN message
 	uint32_t errorflags = 0x00U;
-//	uint32_t break_detected = 0;
-	static uint32_t byte_cnt = 0;
-	static uint8_t buffer[10] = {0};
+
 
 	if(USART1->SR & (uint32_t)USART_SR_IDLE) // Idle detect
 	{
@@ -317,7 +315,8 @@ void USART1_IRQHandler(void)
 	if(errorflags == 0)
 	{
 		/* UART in mode Receiver -------------------------------------------------*/
-		if(((USART1->SR & USART_SR_RXNE) != 0) && ((USART1->CR1 & USART_CR1_RXNEIE) != 0))
+		if(((USART1->SR & USART_SR_RXNE) != 0)
+				&& ((USART1->CR1 & USART_CR1_RXNEIE) != 0))
 		{
 			lin_byte_received(USART1->DR);
 //			if(byte_cnt == 0)

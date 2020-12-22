@@ -32,7 +32,7 @@ Src/main.o: ../Src/main.c ../Inc/main.h \
  ../Middlewares/Third_Party/FatFs/src/diskio.h \
  ../Middlewares/Third_Party/FatFs/src/ff.h ../Inc/user_diskio.h \
  ../Inc/rtc.h ../Inc/spi.h ../Inc/usart.h ../Inc/gpio.h ../Inc/button.h \
- ../Inc/GVRET.h ../Inc/eeprom.h
+ ../Inc/GVRET.h ../Inc/eeprom.h ../Inc/LIN.h
 
 ../Inc/main.h:
 
@@ -125,3 +125,5 @@ Src/main.o: ../Src/main.c ../Inc/main.h \
 ../Inc/GVRET.h:
 
 ../Inc/eeprom.h:
+
+../Inc/LIN.h:

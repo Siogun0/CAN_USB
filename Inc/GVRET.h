@@ -49,6 +49,11 @@ typedef enum
 	true = 1
 }boolean;
 
+#define BUS_HSCAN	0
+#define BUS_FTCAN	1
+#define BUS_SWCAN	2
+#define BUS_LIN		3
+
 
 #define HW_VER        0x10		// hardware version
 #define SW_VER        0x10		// software version
@@ -86,6 +91,7 @@ typedef enum
 #define READ_REG_COM    	'G'	// read register conten from SJA1000
 #define WRITE_REG_COM   	'W'	// write register content to SJA1000
 #define LISTEN_ONLY     	'L'	// switch to listen only mode
+#define LIN_MODE			'l' // LIN mode lM - master, lS - slave
 #define SET_USART_BTR_CUST	'u' // set USART bitrate
 #define SET_USART_BTR		'U' // set USART bitrate
 #define SELECT_BUS_CHANEL	'B' // select channel CAN/LIN
@@ -150,6 +156,8 @@ typedef enum {
     GVRET_FILE = 2,
     CRTD_FILE = 3
 } FILEOUTPUTTYPE;
+
+
 
 volatile typedef struct {
 	uint16_t version;

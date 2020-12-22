@@ -35,6 +35,7 @@
 #include "GVRET.h"
 #include "eeprom.h"
 #include <string.h>
+#include "LIN.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -77,7 +78,7 @@ uint8_t flash_buffer[128];
 uint8_t filename[] = LOG_NAME;
 uint8_t pathname[] = LOG_PATH;
 
-uint8_t debug_buf[1024];
+uint8_t script_read_buf[1024];
 uint32_t debug_pt = 0;
 
 
@@ -205,7 +206,8 @@ void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	can_rx_buf[1].timestamp = HAL_GetTick();
 	can_rx_buf[1].bus = eeprom_settings.numBus;
 	CAN_Buffer_Write_Data(can_rx_buf[1]);
-	CAN_Log_Buffer_Write_Data(can_rx_buf[1]);
+	if(conf.loger_run == true)
+		CAN_Log_Buffer_Write_Data(can_rx_buf[1]);
 	HAL_GPIO_WritePin(RX_LED_GPIO_Port, RX_LED_Pin, GPIO_PIN_SET);
 }
 
@@ -215,7 +217,8 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	can_rx_buf[0].timestamp = HAL_GetTick();
 	can_rx_buf[0].bus = eeprom_settings.numBus;
 	CAN_Buffer_Write_Data(can_rx_buf[0]);
-	CAN_Log_Buffer_Write_Data(can_rx_buf[0]);
+	if(conf.loger_run == true)
+		CAN_Log_Buffer_Write_Data(can_rx_buf[0]);
 	HAL_GPIO_WritePin(RX_LED_GPIO_Port, RX_LED_Pin, GPIO_PIN_SET);
 }
 
@@ -322,33 +325,33 @@ int main(void)
 			{
 				do
 				{
-					if(f_gets((char*)debug_buf, sizeof(debug_buf), &fil) != 0)
+					if(f_gets((char*)script_read_buf, sizeof(script_read_buf), &fil) != 0)
 					{
-						uint8_t str_len = strlen((char*)debug_buf);
+						uint8_t str_len = strlen((char*)script_read_buf);
 
 						// cut of comments
 						for(int i = 0; i < str_len; i++)
 						{
-							if(debug_buf[i] == ' ' || debug_buf[i] == '#' || debug_buf[i] == '\r')
+							if(script_read_buf[i] == ' ' || script_read_buf[i] == '#' || script_read_buf[i] == '\r')
 							{
 								//if(i == 0) continue;
-								debug_buf[i] = '\r';
+								script_read_buf[i] = '\r';
 								str_len = i + 1;
 								break;
 							}
 						}
 						// correct "end of command"
-						if(debug_buf[str_len-1] == '\n') debug_buf[str_len-1] = '\r';
-						else if(debug_buf[str_len-1] != '\r') debug_buf[str_len++] = '\r';
+						if(script_read_buf[str_len-1] == '\n') script_read_buf[str_len-1] = '\r';
+						else if(script_read_buf[str_len-1] != '\r') script_read_buf[str_len++] = '\r';
 						//if(debug_buf[str_len-2] == '\r') str_len--;
 
 						if(str_len > 1)
-							copy_script(debug_buf, str_len);
+							copy_script(script_read_buf, str_len);
 					}
 					else
 					{
-						debug_buf[0] = 0xFF;
-						copy_script(debug_buf, 1);
+						script_read_buf[0] = 0xFF;
+						copy_script(script_read_buf, 1);
 						break;
 					}
 				}
@@ -390,15 +393,7 @@ int main(void)
   while (1)
   {
 
-//	  HAL_UART_Receive_IT(&huart3, uart_rx_bufer, 1);
-//	  if(USART3->SR & USART_SR_RXNE) // TODO ������� ������� ����� ������ USART3
-//	  {
-//		  uart_rx_char = USART3->DR;
-//		  debug_buf[debug_pt++] = uart_rx_char;
-//		  if(debug_pt == 1024) debug_pt = 0;
-//		  Check_Command(uart_rx_char);
-//
-//	  }
+
 	  while(uart_rx_pointer_r != uart_rx_pointer_w) // Buffer UART RX reading
 	  {
 		  uart_rx_pointer_r = (uart_rx_pointer_r + 1) & 1023;
@@ -462,17 +457,6 @@ int main(void)
 		{
 			time_stamp_UART = HAL_GetTick();
 			UART_Check_Data_Ready();
-
-//			unsigned int nob;
-//			static uint8_t c = '0';
-//			uint8_t text[20] = "Hello  \r\n";
-//			text[6] = c;
-//			c=c<'9'?c+1:'0';
-//			if(time_stamp_LED < 50000)
-//				fresult = f_write(&fil, text, sizeof(text), &nob);
-//			else{
-//				f_close(&fil);
-//				HAL_GPIO_WritePin(ERROR_LED_GPIO_Port, ERROR_LED_Pin, GPIO_PIN_SET);}
 		}
 
 		// LED blinking
@@ -480,8 +464,10 @@ int main(void)
 		{
 			time_stamp_LED = HAL_GetTick();
 			HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-
-
+// LIN DEBUG
+//			uint8_t temp_buf[9] = {0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55};
+//			lin_send_master_request(0x55, temp_buf, 9);
+//			HAL_GPIO_WritePin(TX_LED_GPIO_Port, TX_LED_Pin, GPIO_PIN_SET);
 		}
 
 		//Save file, open NEW

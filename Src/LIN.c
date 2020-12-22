@@ -39,7 +39,9 @@ lin_stat_t lin_stat;
 lin_msg_t lin_msg;
 uint8_t lin_send_buffer[11];
 
-extern UART_HandleTypeDef huart1;
+extern UART_HandleTypeDef *huart_lin;
+
+extern conf_t conf;
 
 boolean lin_check_slave_answer(uint8_t pid);
 
@@ -73,7 +75,7 @@ can_msg_t lin_msg_parse(void)
 	can_msg_t msg = {0};
 	uint8_t checksumm;
 	msg.timestamp = HAL_GetTick();
-	msg.header.DLC = lin_stat.byte_cnt-3;
+	msg.header.DLC = (lin_stat.byte_cnt > 2) ? lin_stat.byte_cnt-3 : 0;
 	msg.data_byte[0] = lin_stat.data[0];
 	msg.data_byte[1] = lin_stat.data[1];
 	msg.data_byte[2] = lin_stat.data[2];
@@ -106,7 +108,8 @@ void lin_msg_received(void)
 	can_msg_t temp_msg;
 	temp_msg = lin_msg_parse();
 	CAN_Buffer_Write_Data(temp_msg);
-	CAN_Log_Buffer_Write_Data(temp_msg);
+	if(conf.loger_run == true)
+		CAN_Log_Buffer_Write_Data(temp_msg);
 }
 
 void lin_break_detect(void)
@@ -174,26 +177,45 @@ void lin_byte_received(uint8_t byte)
 
 }
 
-void lin_add_slave_msg(uint8_t pid, uint8_t * buf, uint8_t len)
+HAL_StatusTypeDef lin_add_slave_msg(uint8_t pid, uint8_t * buf, uint8_t len)
 {
-	for(uint8_t i = 0; i < LIN_SLAVE_BUF_LEN; i++)
+	uint8_t buf_item_numb = LIN_SLAVE_BUF_LEN;
+	for(uint8_t i = 0; i < LIN_SLAVE_BUF_LEN; i++) 	// find same pid
 	{
-		if(lin_slave_buf[i].pid == 0 || lin_slave_buf[i].pid == pid)
+		if(lin_slave_buf[i].pid == pid)
 		{
-			lin_slave_buf[i].pid = pid;
-			lin_slave_buf[i].len = len;
-			lin_slave_buf[i].buf[0] = buf[0];
-			lin_slave_buf[i].buf[1] = buf[1];
-			lin_slave_buf[i].buf[2] = buf[2];
-			lin_slave_buf[i].buf[3] = buf[3];
-			lin_slave_buf[i].buf[4] = buf[4];
-			lin_slave_buf[i].buf[5] = buf[5];
-			lin_slave_buf[i].buf[6] = buf[6];
-			lin_slave_buf[i].buf[7] = buf[7];
-			lin_slave_buf[i].buf[8] = buf[8];
+			buf_item_numb = i;
 			break;
 		}
 	}
+	if(buf_item_numb == LIN_SLAVE_BUF_LEN)			// else find empty item
+	{
+		for(uint8_t i = 0; i < LIN_SLAVE_BUF_LEN; i++)
+		{
+			if(lin_slave_buf[i].pid == 0)
+			{
+				buf_item_numb = i;
+				break;
+			}
+		}
+	}
+
+	if(buf_item_numb < LIN_SLAVE_BUF_LEN)			// item found
+	{
+		lin_slave_buf[buf_item_numb].pid = pid;
+		lin_slave_buf[buf_item_numb].len = len;
+		lin_slave_buf[buf_item_numb].buf[0] = buf[0];
+		lin_slave_buf[buf_item_numb].buf[1] = buf[1];
+		lin_slave_buf[buf_item_numb].buf[2] = buf[2];
+		lin_slave_buf[buf_item_numb].buf[3] = buf[3];
+		lin_slave_buf[buf_item_numb].buf[4] = buf[4];
+		lin_slave_buf[buf_item_numb].buf[5] = buf[5];
+		lin_slave_buf[buf_item_numb].buf[6] = buf[6];
+		lin_slave_buf[buf_item_numb].buf[7] = buf[7];
+		lin_slave_buf[buf_item_numb].buf[8] = buf[8];
+		return HAL_OK;
+	}
+	return HAL_BUSY;
 }
 
 boolean lin_check_slave_answer(uint8_t pid)
@@ -203,7 +225,7 @@ boolean lin_check_slave_answer(uint8_t pid)
 		if(lin_slave_buf[i].pid == pid)
 		{
 			DISABLE_SLAVE;
-			SEND_LIN(&huart1, lin_slave_buf[i].buf, lin_slave_buf[i].len);
+			SEND_LIN(huart_lin, lin_slave_buf[i].buf, lin_slave_buf[i].len);
 			lin_slave_buf[i].pid = 0;
 			return true;
 		}
@@ -221,5 +243,5 @@ void lin_send_master_request(uint8_t pid, uint8_t * buf, uint8_t len)
 	}
 	USART1->CR1 |= USART_CR1_SBK;
 	while(USART1->CR1 & USART_CR1_SBK);
-	SEND_LIN(&huart1, lin_send_buffer, len+2);
+	SEND_LIN(huart_lin, lin_send_buffer, len+2);
 }

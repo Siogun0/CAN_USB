@@ -27,14 +27,18 @@ static uint8_t PowerFlag = 0;				/* Power flag */
 static void SELECT(void)
 {
 	HAL_GPIO_WritePin(SD_CS_PORT, SD_CS_PIN, GPIO_PIN_RESET);
-	HAL_Delay(1);
+	//HAL_Delay(1);
+	__asm volatile ("NOP");
+	__asm volatile ("NOP");
+	__asm volatile ("NOP");
+	__asm volatile ("NOP");
 }
 
 /* slave deselect */
 static void DESELECT(void)
 {
 	HAL_GPIO_WritePin(SD_CS_PORT, SD_CS_PIN, GPIO_PIN_SET);
-	HAL_Delay(1);
+	//HAL_Delay(1);
 }
 
 /* SPI transmit a byte */
@@ -139,6 +143,7 @@ static uint8_t SD_CheckPower(void)
 	return PowerFlag;
 }
 
+
 /* receive data block */
 static bool SD_RxDataBlock(BYTE *buff, UINT len)
 {
@@ -156,9 +161,16 @@ static bool SD_RxDataBlock(BYTE *buff, UINT len)
 	if(token != 0xFE) return FALSE;
 
 	/* receive data */
-	do {
+	/* Uncorrect use len ( len + 1 uteract) */
+//	len--; // first correct
+//	do {
+//		SPI_RxBytePtr(buff++);
+//	} while(len--);
+
+	while(len--)
+	{
 		SPI_RxBytePtr(buff++);
-	} while(len--);
+	}
 
 	/* discard CRC */
 	SPI_RxByte();
@@ -373,7 +385,9 @@ DRESULT SD_disk_read(BYTE pdrv, BYTE* buff, DWORD sector, UINT count)
 	if (count == 1)
 	{
 		/* READ_SINGLE_BLOCK */
-		if ((SD_SendCmd(CMD17, sector) == 0) && SD_RxDataBlock(buff, 512)) count = 0;
+		if ((SD_SendCmd(CMD17, sector) == 0)/* && SD_RxDataBlock(buff, 512)*/) //count = 0;
+			if(SD_RxDataBlock(buff, 512))
+				count = 0;
 	}
 	else
 	{
