@@ -213,13 +213,29 @@ void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan)
 
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
-	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &can_rx_buf[0].header, can_rx_buf[0].data_byte);
+	if(HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &can_rx_buf[0].header, can_rx_buf[0].data_byte) != HAL_OK) return;
 	can_rx_buf[0].timestamp = HAL_GetTick();
 	can_rx_buf[0].bus = eeprom_settings.numBus;
 	CAN_Buffer_Write_Data(can_rx_buf[0]);
 	if(conf.loger_run == true)
 		CAN_Log_Buffer_Write_Data(can_rx_buf[0]);
 	HAL_GPIO_WritePin(RX_LED_GPIO_Port, RX_LED_Pin, GPIO_PIN_SET);
+}
+
+void HAL_CAN_RxFifo0FullCallback(CAN_HandleTypeDef *hcan)
+{
+	HAL_CAN_RxFifo0MsgPendingCallback(hcan);
+}
+
+void HAL_CAN_RxFifo1FullCallback(CAN_HandleTypeDef *hcan)
+{
+	HAL_CAN_RxFifo1MsgPendingCallback(hcan);
+}
+
+void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan)
+{
+	HAL_GPIO_WritePin(ERROR_LED_GPIO_Port, ERROR_LED_Pin, GPIO_PIN_SET);
+	return;
 }
 
 HAL_StatusTypeDef Save_to_File(uint8_t * buf, uint32_t len)
@@ -302,7 +318,7 @@ int main(void)
 
 
 
-
+  // Check switch or incorrect data to reset UART speed
   if(HAL_GPIO_ReadPin(BOOT1_GPIO_Port, BOOT1_Pin) == 1)
   {
 	  huart3.Init.BaudRate = 115200;

@@ -1,5 +1,5 @@
 #MicroXplorer Configuration settings - do not modify
-CAN.CalculateTimeBit=1333
+CAN.CalculateTimeBit=1333.33
 CAN.CalculateTimeQuantum=444.44444444444446
 CAN.IPParameters=CalculateTimeQuantum,CalculateTimeBit
 Dma.Request0=USART2_TX
@@ -244,7 +244,7 @@ ProjectManager.FreePins=false
 ProjectManager.HalAssertFull=false
 ProjectManager.HeapSize=0x200
 ProjectManager.KeepUserCode=true
-ProjectManager.LastFirmware=false
+ProjectManager.LastFirmware=true
 ProjectManager.LibraryCopy=1
 ProjectManager.MainLocation=Src
 ProjectManager.NoMain=false
@@ -309,4 +309,3 @@ VP_RTC_VS_RTC_Activate.Signal=RTC_VS_RTC_Activate
 VP_SYS_VS_Systick.Mode=SysTick
 VP_SYS_VS_Systick.Signal=SYS_VS_Systick
 board=custom
-isbadioc=false

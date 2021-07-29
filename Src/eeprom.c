@@ -1,7 +1,7 @@
 /*
  * eeprom.c
  *
- *  Created on: 26 èşí. 2020 ã.
+ *  Created on: 26 ï¿½ï¿½ï¿½. 2020 ï¿½.
  *      Author: Arh
  */
 
@@ -14,7 +14,7 @@
 #define EEPROM_RDSR		0x05
 #define EEPROM_WRSR		0x01
 #define EEPROM_READ		0x03
-#define EEPROM_WRIRE	0x02
+#define EEPROM_WRITE	0x02
 
 
 HAL_StatusTypeDef EEPROM_Write_disable(SPI_HandleTypeDef *hspi, uint32_t Timeout)
@@ -108,7 +108,7 @@ HAL_StatusTypeDef EEPROM_Write(SPI_HandleTypeDef *hspi, uint16_t address, uint8_
 
 		address_in_page = 0;
 
-		request[0] = EEPROM_WRIRE;
+		request[0] = EEPROM_WRITE;
 		request[1] = (address + sended_bytes) >> 8;
 		request[2] = (address + sended_bytes) & 0xFF;
 

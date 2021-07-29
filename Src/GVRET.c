@@ -2044,6 +2044,7 @@ HAL_StatusTypeDef Open_CAN_cannel()
 	Change_CAN_channel();
 	if(CAN_Init_Custom(eeprom_settings.CAN_Speed[eeprom_settings.numBus], eeprom_settings.CAN_mode[eeprom_settings.numBus]) == HAL_OK)//);CAN_MODE_LOOPBACK
 	{
+		// TODO write eeprom only if changed speed
 		EEPROM_Write(&hspi2,
 				EEPROM_SETINGS_ADDR + ((uint32_t)&eeprom_settings.CAN_Speed[eeprom_settings.numBus] - (uint32_t)&eeprom_settings),
 				(uint8_t*)&eeprom_settings.CAN_Speed[eeprom_settings.numBus], sizeof(eeprom_settings.CAN_Speed[eeprom_settings.numBus]));
@@ -2059,8 +2060,9 @@ HAL_StatusTypeDef Open_CAN_cannel()
 												 CAN_IT_RX_FIFO1_FULL |
 												 //CAN_IT_TX_MAILBOX_EMPTY |
 												 CAN_IT_BUSOFF
+												 | CAN_IT_RX_FIFO0_OVERRUN
 												 ) != HAL_OK) return HAL_ERROR;
-
+// todo Need fix blocking recieving sometime
 		return HAL_OK;
 	}
 	return HAL_ERROR;
@@ -2099,19 +2101,7 @@ void Change_CAN_channel(void)
 	case 2: HAL_GPIO_WritePin(SW_CAN_EN_GPIO_Port, SW_CAN_EN_Pin, GPIO_PIN_SET); break;
 	case 3: HAL_GPIO_WritePin(LIN_EN_GPIO_Port, LIN_EN_Pin, GPIO_PIN_SET); break;
 	}
-/*	HAL_Delay(10);
 
-	if(SysSettings.CAN_Speed[SysSettings.numBus] != 0)
-	{
-    	if(SysSettings.numBus == 3) // LIN
-    	{
-        	Open_LIN_cannel();
-    	}
-    	else // CAN
-    	{
-    		Open_CAN_cannel();
-    	}
-	}*/
 	EEPROM_Write(&hspi2,
 			EEPROM_SETINGS_ADDR + ((uint32_t)&eeprom_settings.numBus - (uint32_t)&eeprom_settings),
 			(uint8_t*)&eeprom_settings.numBus, sizeof(eeprom_settings.numBus));
@@ -2137,10 +2127,7 @@ void HAL_CAN_TxMailbox2CompleteCallback(CAN_HandleTypeDef *hcan)
 {
 	//HAL_GPIO_WritePin(TX_LED_GPIO_Port, TX_LED_Pin, GPIO_PIN_RESET);
 }
-void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan)
-{
-	HAL_GPIO_WritePin(ERROR_LED_GPIO_Port, ERROR_LED_Pin, GPIO_PIN_SET);
-}
+
 
 
 #define MAX_BRP 1024
