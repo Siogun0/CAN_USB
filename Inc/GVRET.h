@@ -164,7 +164,7 @@ volatile typedef struct {
 	uint16_t eeprom_size;
 	uint8_t number_of_busses;
 	uint8_t reserv1;
-	uint16_t start_address_csript;
+	uint16_t start_address_script;
 
 	uint8_t numBus;
     uint32_t CAN_Speed[4];

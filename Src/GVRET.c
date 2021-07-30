@@ -660,6 +660,7 @@ HAL_StatusTypeDef SetFilterCAN(uint32_t id, uint32_t mask_or_id, uint32_t mode, 
 		  CAN_FilterStructure.FilterMaskIdLow = mask_or_id & 0xFFFF;
 		  CAN_FilterStructure.FilterIdHigh = id >> 16;
 		  CAN_FilterStructure.FilterIdLow = id & 0xFFFF;
+
 		  CAN_FilterStructure.FilterScale = CAN_FILTERSCALE_32BIT;
 		  CAN_FilterStructure.FilterActivation = CAN_FILTER_ENABLE;
 
@@ -671,9 +672,9 @@ HAL_StatusTypeDef SetFilterCAN(uint32_t id, uint32_t mask_or_id, uint32_t mode, 
 
 HAL_StatusTypeDef save_script(uint8_t * cmd_buf, uint8_t cmd_len)
 {
-	if(conf.script_address < eeprom_settings.start_address_csript || conf.script_address > eeprom_settings.eeprom_size-2)
+	if(conf.script_address < eeprom_settings.start_address_script || conf.script_address > eeprom_settings.eeprom_size-2)
 	{
-		conf.script_address = eeprom_settings.start_address_csript;
+		conf.script_address = eeprom_settings.start_address_script;
 	}
 	if(conf.script_address + cmd_len < eeprom_settings.eeprom_size-2)
 	{
@@ -695,15 +696,15 @@ HAL_StatusTypeDef copy_script(uint8_t * buf, uint32_t size)
 {
 	uint8_t temp;
 	static uint32_t shift = 0;
-	if(size > eeprom_settings.eeprom_size + shift - eeprom_settings.start_address_csript - 2)
+	if(size > eeprom_settings.eeprom_size + shift - eeprom_settings.start_address_script - 2)
 		return ERROR;
 
 	for(uint32_t i = 0; i < size; i++)
 	{
-		EEPROM_Read(&hspi2, eeprom_settings.start_address_csript + i, &temp, 1);
+		EEPROM_Read(&hspi2, eeprom_settings.start_address_script + i, &temp, 1);
 		if(temp != buf[i])
 		{
-			if(EEPROM_Write(&hspi2, eeprom_settings.start_address_csript + shift, buf, size) == HAL_OK)
+			if(EEPROM_Write(&hspi2, eeprom_settings.start_address_script + shift, buf, size) == HAL_OK)
 			{
 				shift += size;
 				return HAL_OK;
@@ -788,14 +789,15 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
 
         	if(cmd_buf[1] == 'E' || cmd_buf[1] == '1')
         	{
-        		filter_temp |= 1<<2;
+
             	for(int i = 3; i < cmd_len; i++)
             	{
             		if(cmd_buf[i] < '0' || (cmd_buf[i] > '9' && (cmd_buf[i] <'A' || cmd_buf[i] > 'F'))) return ERROR;
             		filter_temp = filter_temp << 4;
             		filter_temp += HexTo4bits(cmd_buf[i]);
             	}
-            	filter_temp = (filter_temp & 0b11111111111111111) << 3;
+            	filter_temp = (filter_temp & 0b111111111111111111) << 3;
+            	filter_temp |= 1<<2;
         	}
         	else if(cmd_buf[1] == 'S' || cmd_buf[1] == '0')
         	{
@@ -805,7 +807,7 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
             		filter_temp = filter_temp << 4;
             		filter_temp += HexTo4bits(cmd_buf[i]);
             	}
-            	filter_temp = (filter_temp & 0b1111111111) << 21;
+            	filter_temp = (filter_temp & 0b11111111111) << 21;
         	}
         	else return ERROR;
 
@@ -953,6 +955,7 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         	conf.CAN_Enable[eeprom_settings.numBus] = true;
 
     		conf.state = LAWICEL_CONNECT;
+
             return CR;
 
             // close CAN channel
@@ -1262,7 +1265,7 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
             {
             	conf.scpipt_saving = true;
             	conf.state = IDLE_ST;
-            	conf.script_address = eeprom_settings.start_address_csript;
+            	conf.script_address = eeprom_settings.start_address_script;
             }
             else if(cmd_buf[1] == '0')
             {
@@ -1297,7 +1300,7 @@ uint8_t exec_usb_cmd (uint8_t * cmd_buf)
         	return CR;
 
         case START_SCRIPT:
-        	conf.script_address = eeprom_settings.start_address_csript;
+        	conf.script_address = eeprom_settings.start_address_script;
         	conf.script_run = true;
         	return CR;
 

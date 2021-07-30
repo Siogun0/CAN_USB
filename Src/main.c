@@ -157,7 +157,7 @@ void UART_Check_Data_Ready(void)
 		if(conf.script_print)
 		{
 			uart_tx_pointer = 0;
-			for(conf.script_address = eeprom_settings.start_address_csript; conf.script_address < (eeprom_settings.start_address_csript + 128); conf.script_address++)
+			for(conf.script_address = eeprom_settings.start_address_script; conf.script_address < eeprom_settings.eeprom_size-2/*(eeprom_settings.start_address_csript + 128)*/; conf.script_address++)
 			{
 				EEPROM_Read(&hspi2, conf.script_address, &uart_tx_bufer[uart_tx_pointer++], 1);
 				if(uart_tx_bufer[uart_tx_pointer-1] == 0xFF)
@@ -166,6 +166,10 @@ void UART_Check_Data_Ready(void)
 					conf.script_print = false;
 					break;
 				}
+			}
+			if(conf.script_address >= eeprom_settings.eeprom_size-2)
+			{
+				conf.script_print = false;
 			}
 			HAL_UART_Transmit_DMA(huart_active, uart_tx_bufer, uart_tx_pointer);
 			uart_tx_pointer = 0;
@@ -300,7 +304,7 @@ int main(void)
   if(eeprom_settings.version == 0xFFFF || eeprom_settings.version < EEPROM_VERSION) {eeprom_settings.version = EEPROM_VERSION; first = true;}
   if(eeprom_settings.eeprom_size == 0xFFFF) {eeprom_settings.eeprom_size = EEPROM_SIZE; first = true;}
   if(eeprom_settings.number_of_busses == 0xFF) {eeprom_settings.number_of_busses = 4; first = true;}
-  if(eeprom_settings.start_address_csript == 0xFFFF) {eeprom_settings.start_address_csript = EEPROM_SCRIPT_ADDR; first = true;}
+  if(eeprom_settings.start_address_script == 0xFFFF) {eeprom_settings.start_address_script = EEPROM_SCRIPT_ADDR; first = true;}
   if(eeprom_settings.numBus == 0xFF) {eeprom_settings.numBus = 0; first = true;}
   if(eeprom_settings.CAN_Speed[0] == 0xFFFFFFFF) {eeprom_settings.CAN_Speed[0] = 500000; first = true;}
   if(eeprom_settings.CAN_Speed[1] == 0xFFFFFFFF) {eeprom_settings.CAN_Speed[1] = 125000; first = true;}
@@ -384,13 +388,19 @@ int main(void)
 
   conf.script_run = true;
   conf.scpipt_saving = false;
-  conf.script_address = eeprom_settings.start_address_csript;
+  conf.script_address = eeprom_settings.start_address_script;
   conf.script_loop_address = 0xFFFF;
 
 
+#ifdef ONLY_GM_DIAG
 
+  SetFilterCAN(0x7E0<<21, 0xFF0<<21, CAN_FILTERMODE_IDMASK,0);
+  SetFilterCAN(0x7DF<<21, 0xFFF<<21, CAN_FILTERMODE_IDMASK,1);
+  SetFilterCAN(0x241<<21, 0xFE0<<21, CAN_FILTERMODE_IDMASK,2);
+#else
 
   SetFilterCAN(0,0,CAN_FILTERMODE_IDMASK,0);
+#endif
   Change_CAN_channel();
   /* USER CODE END 2 */
 
@@ -442,14 +452,14 @@ int main(void)
 			  else if(in_byte == 0xFF)
 			  {
 				  script_buf_pointer = 0;
-				  if(conf.script_loop_address >= eeprom_settings.start_address_csript && conf.script_loop_address != 0xFFFF)
+				  if(conf.script_loop_address >= eeprom_settings.start_address_script && conf.script_loop_address != 0xFFFF)
 				  {
 					  conf.script_address = conf.script_loop_address;
 				  }
 				  else
 				  {
 					  conf.script_run = false;
-					  conf.script_address = eeprom_settings.start_address_csript;
+					  conf.script_address = eeprom_settings.start_address_script;
 					  script_buf_pointer = 0;
 				  }
 			  }
